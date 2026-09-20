@@ -19,10 +19,7 @@ async fn accept_tasks_uses_plural_task_codes() {
         .and(body_json(json!({
             "task_codes": ["a", "b"]
         })))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(json!({"results": []})),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"results": []})))
         .expect(1)
         .mount(&server)
         .await;

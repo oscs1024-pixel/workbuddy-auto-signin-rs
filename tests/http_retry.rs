@@ -1,14 +1,9 @@
-use workbuddy_auto_signin::config::{
-    NETWORK_RETRY_DELAYS, SERVER_RETRY_DELAYS,
-};
-use workbuddy_auto_signin::http::{
-    retry_delays, RetryClass, CODE_BUDGET_OUT, CODE_NO_NETWORK,
-};
+use workbuddy_auto_signin::config::{NETWORK_RETRY_DELAYS, SERVER_RETRY_DELAYS};
+use workbuddy_auto_signin::http::{retry_delays, RetryClass, CODE_BUDGET_OUT, CODE_NO_NETWORK};
 
 #[test]
 fn network_and_server_use_independent_schedules() {
-    let (network_class, network) =
-        retry_delays(CODE_NO_NETWORK).unwrap();
+    let (network_class, network) = retry_delays(CODE_NO_NETWORK).unwrap();
     let (server_class, server) = retry_delays(500).unwrap();
 
     assert_eq!(network_class, RetryClass::Network);

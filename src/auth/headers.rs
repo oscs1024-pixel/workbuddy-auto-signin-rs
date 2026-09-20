@@ -1,6 +1,4 @@
-use reqwest::header::{
-    HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT,
-};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use url::Url;
 
 use crate::config::DEFAULT_ENDPOINT;
@@ -27,8 +25,7 @@ pub fn build_session_context(session: &SessionFile) -> Result<SessionContext, Au
     headers.insert(USER_AGENT, HeaderValue::from_static("WorkBuddy"));
     headers.insert(
         AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {token}"))
-            .map_err(|_| AuthError::InvalidHeader)?,
+        HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| AuthError::InvalidHeader)?,
     );
     headers.insert(
         "X-User-Id",
@@ -41,8 +38,7 @@ pub fn build_session_context(session: &SessionFile) -> Result<SessionContext, Au
         .as_deref()
         .filter(|value| !value.is_empty())
     {
-        let value =
-            HeaderValue::from_str(enterprise).map_err(|_| AuthError::InvalidHeader)?;
+        let value = HeaderValue::from_str(enterprise).map_err(|_| AuthError::InvalidHeader)?;
         headers.insert("X-Enterprise-Id", value.clone());
         headers.insert("X-Tenant-Id", value);
     }

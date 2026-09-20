@@ -16,26 +16,19 @@ async fn unchecked_day_is_claimed_and_reported() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
-        .and(path(
-            "/v2/billing/meter/checkin-activity-status",
-        ))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!({
-                "active": true,
-                "today_checked_in": false,
-                "streak_days": 7,
-                "total_credits": 700
-            })),
-        )
+        .and(path("/v2/billing/meter/checkin-activity-status"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "active": true,
+            "today_checked_in": false,
+            "streak_days": 7,
+            "total_credits": 700
+        })))
         .mount(&server)
         .await;
 
     Mock::given(method("POST"))
         .and(path("/v2/billing/meter/daily-checkin"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(json!({"credit": 100})),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"credit": 100})))
         .mount(&server)
         .await;
 
@@ -46,9 +39,7 @@ async fn unchecked_day_is_claimed_and_reported() {
     )
     .unwrap();
 
-    let run = SigninService::new(BillingApi::new(client))
-        .run()
-        .await;
+    let run = SigninService::new(BillingApi::new(client)).run().await;
 
     assert_eq!(run.code, 0);
     assert_eq!(run.out["result"], "CLAIMED");
@@ -64,25 +55,18 @@ async fn null_claim_response_is_already_checked_in() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
-        .and(path(
-            "/v2/billing/meter/checkin-activity-status",
-        ))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!({
-                "active": true,
-                "today_checked_in": false,
-                "today_credit": 100
-            })),
-        )
+        .and(path("/v2/billing/meter/checkin-activity-status"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "active": true,
+            "today_checked_in": false,
+            "today_credit": 100
+        })))
         .mount(&server)
         .await;
 
     Mock::given(method("POST"))
         .and(path("/v2/billing/meter/daily-checkin"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_raw("null", "application/json"),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_raw("null", "application/json"))
         .mount(&server)
         .await;
 
@@ -93,9 +77,7 @@ async fn null_claim_response_is_already_checked_in() {
     )
     .unwrap();
 
-    let run = SigninService::new(BillingApi::new(client))
-        .run()
-        .await;
+    let run = SigninService::new(BillingApi::new(client)).run().await;
 
     assert_eq!(run.code, 0);
     assert_eq!(run.out["result"], "ALREADY");
