@@ -118,14 +118,16 @@ workbuddy-auto-signin-rs/
 - Buddy 旅行中使用服务端 `arrive_at - server_now` 显示 `HH:MM:SS` 倒计时，例如 `旅行倒计时 02:50:56`；不依赖本机时钟。
 - 进程启动时获取跨平台排他文件锁；已有实例运行时返回 `BUSY` 并跳过本轮，避免计划任务补跑与手工执行并发触发不可逆 Growth 写操作。
 - 旅行配置读取失败会进入 Growth 失败统计，不再被误判为 idle；Growth 写请求会优先保留服务端 `msg` 或客户端 `error` 详情。
-- Growth 关键读接口对最低必要 schema 做校验：HTTP 200 但关键字段消失/类型错误会记录 `schema_mismatches`，不会静默当成“没有任务/没有机会”。
+- Growth 主要状态机入口对最低必要 schema 做校验：HTTP 200 但关键字段消失/类型错误会记录 `schema_mismatches`，避免大部分契约漂移静默退化；具体兼容回落见“已知边界”。
 - soft failure 与 hard failure 分离：4xx/schema drift 会阻止 `idle=true` 并留下日志，但只有 5xx、网络失败、预算耗尽等 hard failure 才影响整体退出码。
 - silent 日志按“显式 `WORKBUDDY_SIGNIN_LOG` → 二进制目录 → 用户 cache 目录 → stderr”逐级兜底，并自动创建缺失的父目录。
 - 凭据 JSON 中显式的 `auth: null` / `account: null` 按空对象处理，最终归一为 `NO_SESSION`，不会误报成 JSON 格式损坏。
 
 ## 实现范围与审计结论
 
-当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架。随后补齐旅行配置错误传播、网络错误详情、null 会话字段兼容、跨进程单实例锁、最低 schema 检测、soft/hard failure 语义拆分、可靠日志兜底，以及关键状态机、golden 和 reference-differential 回归测试。
+当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 基于业务代码提交 `da2ba77ba5c0530dd33a354bbcac487481b7558c` 再次完成全量只读审计，并与已固定的参考契约提交 `2b05ef0112319b9e9e3a8021757320371d0f88a9` 逐项核对。最新 CI run `35488744424` 已通过 Linux / Windows / macOS 的格式、Clippy、编译和测试，Rust 1.89.0 MSRV 校验、四套 release 构建以及 rolling `latest` 发布也全部成功。
+
+当前结论是：**核心业务实现已经完整，没有发现缺失的 endpoint、主状态机断链或需要恢复的旧实现；仓库历史残留已基本清理干净。** 此前发现的旅行配置错误传播、网络错误详情、`auth/account:null`、跨进程单实例锁、最低 schema 检测、soft/hard failure 语义拆分、silent 日志兜底、MSRV 和 reference-differential 基线均已落地。剩余事项主要属于“接口继续漂移时是否足够 fail-closed”以及“自动验证覆盖强度”问题，而不是功能模块缺失。
 
 关键行为：
 
@@ -141,13 +143,32 @@ workbuddy-auto-signin-rs/
 
 CI 使用 mock API 验证关键接口契约和状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建；额外使用 Rust 1.89.0 执行 MSRV `cargo check --locked --all-targets`，确保 `rust-version = "1.89"` 不是仅文档声明。当前行为级回归覆盖旅行 config 硬失败、旅行领奖失败不 depart、任务 20 条分批与 results 缺失回落、补登每轮最多实际消耗一张卡、兑换 unknown-tier 数字 fallback 且使用新 client token、403 locked 优先级、抽奖一轮一次、retry 预算截断、null 会话字段、CLI 无参数兼容、跨平台单实例锁、schema drift 与日志路径回落。
 
-`tests/fixtures/golden_scenarios.json` 固化稳定 helper/output 契约；`tests/fixtures/reference_differential.json` 绑定已验证参考提交 `2b05ef0112319b9e9e3a8021757320371d0f88a9`，通过 mock transcript 对比实际请求顺序和关键输出子集。仓库不复制参考 Python 源文件，因此 differential harness 不会重新引入历史实现残留。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
+`tests/fixtures/golden_scenarios.json` 固化稳定 helper/output 契约；`tests/fixtures/reference_differential.json` 绑定已验证参考提交 `2b05ef0112319b9e9e3a8021757320371d0f88a9`，通过 mock transcript 对比代表性请求顺序和关键输出子集。仓库不复制参考 Python 源文件，因此 differential harness 不会重新引入历史实现残留。其覆盖范围是“代表性 differential + 各模块独立状态机测试”，不是对全部 18 个 endpoint 的穷举差分。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
 
 ### 已知边界
 
 - CI 不持有真实 WorkBuddy 登录凭据，因此不会对生产账号执行签到、补登、兑换、抽奖等写操作；服务端若改版，仍需以实际响应为准。
-- Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应继续使用宽容 JSON 解析；但对影响状态机的关键字段增加最低 schema 检查，在“兼容小改动”和“发现契约漂移”之间取平衡。
+- Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应继续使用宽容 JSON 解析。当前最低 schema 检查已经覆盖主要状态机入口，但**不是完整 JSON Schema 校验**，仍保留少量兼容性回落。
+- `tasks/accept` 的 `results[].status` 当前只有明确 `error` 才按失败处理；如果未来服务端新增未知状态字符串，现实现会把它归入成功分支。后续若进一步收紧，应只允许已验证成功状态，其余状态记录 schema mismatch。
+- 旅行状态为 `idle` 且未达每日上限时，`travel/config.locations = []` 当前会被视为“没有可派地点”并继续整轮流程，而不是 schema mismatch。若服务端契约确认该场景下 locations 必须非空，可进一步改成 fail-closed。
+- `buddy/quota.max_open_count` 缺失时按已验证兼容规则回落到 1；字段存在但无法解析时当前会记录 schema mismatch，同时仍以 1 继续。这能保持兼容性，但从最严格的不可逆写操作策略看，后续可考虑在“字段存在但非法”时直接跳过 open。
+- Billing 签到状态接口目前没有像 Growth 一样做最低 schema mismatch 统计；HTTP 2xx 但缺少 `active/today_checked_in` 时会继续尝试幂等的 `daily-checkin`。因为领取接口自身按当天幂等，所以不会造成重复领取，但异常可观察性仍可继续加强。
+- 能量和最终连签天数属于**纯展示值**：与参考行为一致，汇总阶段的 `/energy` 或二次 `/streak` 查询失败、预算不足或字段缺失不会计入 Growth failure，也不会改变主流程结果。
+- `tests/fixtures/reference_differential.json` 当前固定并自动验证“已签到”和“Growth idle 请求序列”两类代表性 transcript；其它关键写状态机由独立 wiremock 测试覆盖，但还不是“18 个 endpoint 每种状态全部跑一遍”的全量 differential harness。
 - Reference differential fixture 固定在已验证参考提交；参考实现若出现新提交，需要重新审计接口与 fixture，而不是自动追随最新代码。
+
+### 历史残留检查
+
+本轮重新检查完整 Git tree 与默认分支代码搜索，没有发现需要删除的明显历史垃圾文件或未完成标记：
+
+- 不存在旧 `signin.py`、Python/pythonw 运行入口或 Python 依赖。
+- 不存在早期平铺的重复 auth/http/growth 实现，也没有已经不用的 `model/billing.rs` / `model/growth.rs`。
+- 不存在重复的 systemd `*.example`、空 fixture 占位文件或旧安装脚本副本。
+- 默认分支没有 `TODO` / `FIXME` / `deprecated` / `legacy` / `temporary` 等显式未完成标记。
+- `silent-growth` 是有意保留的兼容命令名，不属于废代码。
+- Linux 旧凭据路径探测是迁移兼容 fallback，不属于残留实现。
+- `tests/fixtures/reference_differential.json` 中的固定参考提交信息是差异回归测试的来源元数据，不是运行时代码。
+- `LICENSE` 中的许可与版权归属属于法律保留内容，不应作为“旧项目标识”删除。
 
 ## 构建
 
