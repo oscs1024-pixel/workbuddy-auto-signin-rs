@@ -131,9 +131,7 @@ impl WorkBuddyClient {
             let delay = delays[used];
             attempts.insert(class, used + 1);
 
-            if self.budget.remaining_secs_f64()
-                <= delay as f64 + REQUEST_TIMEOUT_SECS
-            {
+            if self.budget.remaining_secs_f64() <= delay as f64 + REQUEST_TIMEOUT_SECS {
                 return result;
             }
 
@@ -159,11 +157,7 @@ impl WorkBuddyClient {
     }
 
     // 仅供明确具备幂等语义的 POST 使用（当前是两个 Billing 签到接口）。
-    pub async fn post_retryable(
-        &self,
-        path: &str,
-        payload: Option<&Value>,
-    ) -> HttpResult {
+    pub async fn post_retryable(&self, path: &str, payload: Option<&Value>) -> HttpResult {
         self.request(Method::POST, path, payload, true).await
     }
 }

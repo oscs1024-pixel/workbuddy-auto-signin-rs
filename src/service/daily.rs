@@ -6,14 +6,8 @@ use crate::util::as_i64;
 use super::growth::GrowthService;
 use super::signin::SigninService;
 
-pub async fn run_daily(
-    signin: &SigninService,
-    growth: &GrowthService,
-) -> (i32, Value, bool) {
-    let ServiceRun {
-        mut code,
-        mut out,
-    } = signin.run().await;
+pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, Value, bool) {
+    let ServiceRun { mut code, mut out } = signin.run().await;
 
     let result = out
         .get("result")
@@ -38,16 +32,8 @@ pub async fn run_daily(
     }
 
     let growth_run = growth.run().await;
-    let growth_report = growth_run
-        .out
-        .get("report")
-        .cloned()
-        .unwrap_or(Value::Null);
-    let growth_result = growth_run
-        .out
-        .get("result")
-        .cloned()
-        .unwrap_or(Value::Null);
+    let growth_report = growth_run.out.get("report").cloned().unwrap_or(Value::Null);
+    let growth_result = growth_run.out.get("result").cloned().unwrap_or(Value::Null);
 
     insert(&mut out, "growth", growth_report.clone());
     insert(&mut out, "growth_result", growth_result);

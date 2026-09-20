@@ -5,9 +5,7 @@ use crate::model::common::ServiceRun;
 use crate::service::signin::display_value;
 use crate::util::{as_i64, client_token, dig};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 pub struct MakeupState {
     pub streak_body: Option<Value>,
@@ -65,14 +63,11 @@ pub async fn run(
     let mut streak_stale = false;
 
     if cards > 0 && !dates.is_empty() {
-        let count = (cards as usize)
-            .min(MAKEUP_MAX_PER_RUN)
-            .min(dates.len());
+        let count = (cards as usize).min(MAKEUP_MAX_PER_RUN).min(dates.len());
 
         for date in dates.iter().take(count) {
             if ctx.budget.exhausted() {
-                acc.parts
-                    .push("时间预算耗尽，剩余补登下次再做".to_string());
+                acc.parts.push("时间预算耗尽，剩余补登下次再做".to_string());
                 break;
             }
 
@@ -89,9 +84,7 @@ pub async fn run(
                 cards -= 1;
                 streak_stale = true;
 
-                let remaining = parse_makeup_cards(
-                    dig(&used.body, "makeup_cards"),
-                );
+                let remaining = parse_makeup_cards(dig(&used.body, "makeup_cards"));
                 let remaining = if dig(&used.body, "makeup_cards").is_some() {
                     remaining
                 } else {

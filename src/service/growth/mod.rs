@@ -61,12 +61,8 @@ impl GrowthService {
             return run;
         }
 
-        let (energy, streak_days) = summary::load_values(
-            &ctx,
-            makeup.streak_body,
-            makeup.streak_stale,
-        )
-        .await;
+        let (energy, streak_days) =
+            summary::load_values(&ctx, makeup.streak_body, makeup.streak_stale).await;
 
         summary::finalize(acc, energy, streak_days)
     }

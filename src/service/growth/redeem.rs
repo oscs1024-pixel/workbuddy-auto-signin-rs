@@ -4,9 +4,7 @@ use crate::http::HttpResult;
 use crate::model::common::ServiceRun;
 use crate::util::{as_i64, client_token, dig, value_string};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 const REDEEM_TIERS: &[(&str, &str, &str, i64)] = &[
     ("7d", "starter", "入门", 7),
@@ -14,10 +12,7 @@ const REDEEM_TIERS: &[(&str, &str, &str, i64)] = &[
     ("28d", "legendary", "巅峰", 28),
 ];
 
-pub async fn run(
-    ctx: &GrowthContext<'_>,
-    acc: &mut GrowthAccumulator,
-) -> Option<ServiceRun> {
+pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
         acc.parts.push("时间预算耗尽，连登兑换跳过".to_string());
         return None;
@@ -50,16 +45,10 @@ pub async fn run(
         }
 
         // 主契约使用 7d/14d/28d；只有服务端明确表示“不认识 tier”时才退回数字天数重试。
-        let mut redeemed = ctx
-            .api
-            .redeem(json!(tier), client_token("u"))
-            .await;
+        let mut redeemed = ctx.api.redeem(json!(tier), client_token("u")).await;
 
         if is_unknown_tier(&redeemed) {
-            redeemed = ctx
-                .api
-                .redeem(json!(days), client_token("u"))
-                .await;
+            redeemed = ctx.api.redeem(json!(days), client_token("u")).await;
         }
 
         // 403“连登天数不足”是业务常态，必须先于通用 401/403 登录失效判断。
@@ -74,8 +63,7 @@ pub async fn run(
         }
 
         if redeemed.is_success() {
-            acc.credits_gained +=
-                as_i64(dig(&redeemed.body, "credit_granted"), 0);
+            acc.credits_gained += as_i64(dig(&redeemed.body, "credit_granted"), 0);
             acc.parts.push(format!(
                 "连登兑换「{label}」{}",
                 redeem_reward_desc(&redeemed.body, tier)
@@ -115,8 +103,7 @@ pub fn is_tier_locked(response: &HttpResult) -> bool {
         return false;
     }
 
-    let message =
-        value_string(dig(&response.body, "msg")).unwrap_or_default();
+    let message = value_string(dig(&response.body, "msg")).unwrap_or_default();
 
     message.contains("天数不足") || message.contains("不足")
 }

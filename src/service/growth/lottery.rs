@@ -3,14 +3,9 @@ use serde_json::Value;
 use crate::model::common::ServiceRun;
 use crate::util::{as_i64, client_token, dig, value_truthy};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
-pub async fn run(
-    ctx: &GrowthContext<'_>,
-    acc: &mut GrowthAccumulator,
-) -> Option<ServiceRun> {
+pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
         acc.parts.push("时间预算耗尽，盲盒跳过".to_string());
         return None;
@@ -39,8 +34,7 @@ pub async fn run(
     }
 
     if draw.is_success() {
-        let prize_value = dig(&draw.body, "prize_name")
-            .or_else(|| dig(&draw.body, "prize"));
+        let prize_value = dig(&draw.body, "prize_name").or_else(|| dig(&draw.body, "prize"));
 
         let mut prize = match prize_value {
             Some(Value::String(value)) => value.clone(),
@@ -62,9 +56,7 @@ pub async fn run(
                 .push(format!("还剩 {} 次抽奖机会，下轮继续", chances - 1));
         }
     } else {
-        let message = dig(&draw.body, "msg")
-            .and_then(Value::as_str)
-            .unwrap_or("");
+        let message = dig(&draw.body, "msg").and_then(Value::as_str).unwrap_or("");
 
         if is_no_chance(message) {
             acc.parts.push(format!(
@@ -78,10 +70,7 @@ pub async fn run(
         } else {
             acc.record_failure(
                 draw.code,
-                format!(
-                    "开盲盒失败：{}",
-                    message_or_http(&draw.body, draw.code)
-                ),
+                format!("开盲盒失败：{}", message_or_http(&draw.body, draw.code)),
             );
         }
     }
@@ -96,9 +85,7 @@ pub fn is_no_chance(message: &str) -> bool {
         return false;
     }
 
-    if message.contains("insufficient")
-        || message.contains("not enough")
-    {
+    if message.contains("insufficient") || message.contains("not enough") {
         return message.contains("chance") || message.contains("balance");
     }
 

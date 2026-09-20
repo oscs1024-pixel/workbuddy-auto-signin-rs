@@ -42,9 +42,7 @@ impl Reporter {
     }
 
     pub fn emit(&self, mut out: Value) {
-        if let (Some(warning), Some(object)) =
-            (self.config_warning.as_ref(), out.as_object_mut())
-        {
+        if let (Some(warning), Some(object)) = (self.config_warning.as_ref(), out.as_object_mut()) {
             object.insert("config_warning".into(), json!(warning));
         }
 
@@ -59,10 +57,7 @@ impl Reporter {
             }
         }
 
-        let line = format!(
-            "[{}] {payload}\n",
-            Local::now().format("%Y-%m-%d %H:%M:%S")
-        );
+        let line = format!("[{}] {payload}\n", Local::now().format("%Y-%m-%d %H:%M:%S"));
 
         let requested = std::env::var_os("WORKBUDDY_SIGNIN_LOG")
             .filter(|value| !value.is_empty())

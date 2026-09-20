@@ -65,11 +65,7 @@ impl GrowthApi {
         self.client.get(&Self::path("/streak")).await
     }
 
-    pub async fn use_makeup_card(
-        &self,
-        target_date: Value,
-        client_token: String,
-    ) -> HttpResult {
+    pub async fn use_makeup_card(&self, target_date: Value, client_token: String) -> HttpResult {
         let payload = json!({
             "target_date": target_date,
             "client_token": client_token

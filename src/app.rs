@@ -56,39 +56,36 @@ pub async fn run(action_name: &str) -> i32 {
         return 2;
     };
 
-    let session =
-        match load_session_retry(&auth_file, 3, Duration::from_secs(2)).await {
-            Ok(session) => session,
-            Err(AuthError::Json(error)) => {
-                reporter.emit(json!({
-                    "result": "ERROR",
-                    "report": format!(
-                        "登录凭据文件不是合法 JSON（{error}），请重新登录 WorkBuddy 桌面端"
-                    )
-                }));
-                return 2;
-            }
-            Err(AuthError::Io(error))
-                if error.kind() == ErrorKind::InvalidData =>
-            {
-                reporter.emit(json!({
-                    "result": "ERROR",
-                    "report": format!(
-                        "登录凭据文件内容损坏（InvalidData: {error}），请重新登录 WorkBuddy 桌面端"
-                    )
-                }));
-                return 2;
-            }
-            Err(error) => {
-                reporter.emit(json!({
-                    "result": "ERROR",
-                    "report": format!(
-                        "读取登录凭据失败（{error}），请重新登录 WorkBuddy 桌面端"
-                    )
-                }));
-                return 2;
-            }
-        };
+    let session = match load_session_retry(&auth_file, 3, Duration::from_secs(2)).await {
+        Ok(session) => session,
+        Err(AuthError::Json(error)) => {
+            reporter.emit(json!({
+                "result": "ERROR",
+                "report": format!(
+                    "登录凭据文件不是合法 JSON（{error}），请重新登录 WorkBuddy 桌面端"
+                )
+            }));
+            return 2;
+        }
+        Err(AuthError::Io(error)) if error.kind() == ErrorKind::InvalidData => {
+            reporter.emit(json!({
+                "result": "ERROR",
+                "report": format!(
+                    "登录凭据文件内容损坏（InvalidData: {error}），请重新登录 WorkBuddy 桌面端"
+                )
+            }));
+            return 2;
+        }
+        Err(error) => {
+            reporter.emit(json!({
+                "result": "ERROR",
+                "report": format!(
+                    "读取登录凭据失败（{error}），请重新登录 WorkBuddy 桌面端"
+                )
+            }));
+            return 2;
+        }
+    };
 
     let context = match build_session_context(&session) {
         Ok(context) => context,
@@ -108,11 +105,7 @@ pub async fn run(action_name: &str) -> i32 {
         }
     };
 
-    let client = match WorkBuddyClient::new(
-        context.endpoint,
-        context.headers,
-        budget.clone(),
-    ) {
+    let client = match WorkBuddyClient::new(context.endpoint, context.headers, budget.clone()) {
         Ok(client) => client,
         Err(error) => {
             reporter.emit(json!({

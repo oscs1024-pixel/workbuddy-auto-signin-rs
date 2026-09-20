@@ -3,8 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::cli::Action;
 use crate::config::{
-    DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, POLL_BUDGET_SECONDS,
-    POLL_MAX_BUDGET_SECONDS,
+    DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, POLL_BUDGET_SECONDS, POLL_MAX_BUDGET_SECONDS,
 };
 
 #[derive(Debug, Clone)]

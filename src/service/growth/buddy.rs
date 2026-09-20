@@ -3,9 +3,7 @@ use serde_json::Value;
 use crate::model::common::ServiceRun;
 use crate::util::{as_i64, client_token, dig};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 pub fn compute_open_count(affordable: i64, max_open_count: i64) -> i64 {
     let max_open_count = if max_open_count == 0 {
@@ -16,13 +14,9 @@ pub fn compute_open_count(affordable: i64, max_open_count: i64) -> i64 {
     affordable.min(max_open_count)
 }
 
-pub async fn run(
-    ctx: &GrowthContext<'_>,
-    acc: &mut GrowthAccumulator,
-) -> Option<ServiceRun> {
+pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts
-            .push("时间预算耗尽，Buddy 盲盒跳过".to_string());
+        acc.parts.push("时间预算耗尽，Buddy 盲盒跳过".to_string());
         return None;
     }
 
@@ -37,18 +31,14 @@ pub async fn run(
     }
 
     let affordable = as_i64(dig(&quota.body, "affordable"), 0);
-    let max_open_count =
-        as_i64(dig(&quota.body, "max_open_count"), 1);
+    let max_open_count = as_i64(dig(&quota.body, "max_open_count"), 1);
 
     if affordable <= 0 {
         return None;
     }
 
     let count = compute_open_count(affordable, max_open_count);
-    let opened = ctx
-        .api
-        .buddy_open(count, client_token("u"))
-        .await;
+    let opened = ctx.api.buddy_open(count, client_token("u")).await;
 
     if check_auth(opened.code) {
         return Some(no_session());
@@ -60,8 +50,7 @@ pub async fn run(
             .find_map(|key| dig(&opened.body, key).and_then(Value::as_str))
             .unwrap_or("新 Buddy");
 
-        acc.parts
-            .push(format!("开 Buddy 盲盒 ×{count}（{name}）"));
+        acc.parts.push(format!("开 Buddy 盲盒 ×{count}（{name}）"));
         acc.successes += 1;
     } else {
         acc.record_failure(

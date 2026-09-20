@@ -11,8 +11,13 @@ pub const SERVER_RETRY_DELAYS: &[u64] = &[3, 10];
 
 pub const MAKEUP_MAX_PER_RUN: usize = 1;
 
-pub const AUTH_BASENAME: &[&str] =
-    &["CodeBuddyExtension", "Data", "Public", "auth", "workbuddy-desktop.info"];
+pub const AUTH_BASENAME: &[&str] = &[
+    "CodeBuddyExtension",
+    "Data",
+    "Public",
+    "auth",
+    "workbuddy-desktop.info",
+];
 pub const CLI_AUTH_BASENAME: &[&str] = &[
     "CodeBuddyExtension",
     "Data",
