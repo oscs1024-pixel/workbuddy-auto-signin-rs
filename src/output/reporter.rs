@@ -75,7 +75,6 @@ impl Reporter {
             .ok()
             .is_some_and(|value| value.trim().eq_ignore_ascii_case("json"))
     }
-
 }
 
 fn render_human(action: &str, out: &Value) -> String {
@@ -161,7 +160,10 @@ fn push_metric(lines: &mut Vec<String>, label: &str, value: Option<&Value>, sign
 }
 
 fn render_growth(lines: &mut Vec<String>, detail: &Value) {
-    let result = detail.get("result").and_then(Value::as_str).unwrap_or("GROWTH");
+    let result = detail
+        .get("result")
+        .and_then(Value::as_str)
+        .unwrap_or("GROWTH");
     if result != "GROWTH" {
         let report = detail
             .get("report")
