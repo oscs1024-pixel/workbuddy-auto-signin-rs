@@ -5,14 +5,9 @@ use crate::model::common::ServiceRun;
 use crate::service::signin::display_value;
 use crate::util::{as_i64, dig, format_eta, value_truthy};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
-pub async fn run(
-    ctx: &GrowthContext<'_>,
-    acc: &mut GrowthAccumulator,
-) -> Option<ServiceRun> {
+pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     let status = ctx.api.travel_status().await;
 
     if status.code == CODE_BUDGET_OUT {
@@ -50,14 +45,14 @@ pub async fn run(
         None
     };
 
-    let daily_limit =
-        status.is_success() && value_truthy(dig(&status.body, "daily_limit_reached"));
+    let daily_limit = status.is_success() && value_truthy(dig(&status.body, "daily_limit_reached"));
 
     acc.note_http(&status, "查旅行状态");
 
     if travel.as_deref() == Some("arrived") {
-        let record_id =
-            dig(&status.body, "record_id").cloned().unwrap_or(Value::Null);
+        let record_id = dig(&status.body, "record_id")
+            .cloned()
+            .unwrap_or(Value::Null);
         let claim = ctx.api.travel_claim(record_id).await;
 
         if check_auth(claim.code) {
@@ -95,8 +90,7 @@ pub async fn run(
             .and_then(|items| items.first())
             .and_then(Value::as_object)
         {
-            let location_id =
-                location.get("id").cloned().unwrap_or(Value::Null);
+            let location_id = location.get("id").cloned().unwrap_or(Value::Null);
             let depart = ctx.api.travel_depart(location_id).await;
 
             if check_auth(depart.code) {
@@ -121,9 +115,8 @@ pub async fn run(
                     .map(|value| display_value(&value))
                     .unwrap_or_else(|| "?".to_string());
 
-                acc.parts.push(format!(
-                    "派 Buddy 去{location_name}（{duration} 小时后回）"
-                ));
+                acc.parts
+                    .push(format!("派 Buddy 去{location_name}（{duration} 小时后回）"));
                 acc.successes += 1;
             } else {
                 acc.record_failure(

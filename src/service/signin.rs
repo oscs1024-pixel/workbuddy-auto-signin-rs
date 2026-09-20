@@ -162,11 +162,7 @@ impl SigninService {
                 .unwrap_or_default();
 
             let streak = match streak_days.as_ref() {
-                Some(days) => format!(
-                    "（连续 {} 天{}）",
-                    display_value(days),
-                    cumulative
-                ),
+                Some(days) => format!("（连续 {} 天{}）", display_value(days), cumulative),
                 None if !cumulative.is_empty() => {
                     format!("（{}）", cumulative.trim_start_matches('，'))
                 }
@@ -184,18 +180,9 @@ impl SigninService {
             out.insert("result".into(), json!("CLAIMED"));
             out.insert("report".into(), json!(report));
             out.insert("credit".into(), credit);
-            out.insert(
-                "streak_days".into(),
-                streak_days.unwrap_or(Value::Null),
-            );
-            out.insert(
-                "total_credits".into(),
-                total_credits.unwrap_or(Value::Null),
-            );
-            out.insert(
-                "is_streak_day".into(),
-                is_streak_day.unwrap_or(Value::Null),
-            );
+            out.insert("streak_days".into(), streak_days.unwrap_or(Value::Null));
+            out.insert("total_credits".into(), total_credits.unwrap_or(Value::Null));
+            out.insert("is_streak_day".into(), is_streak_day.unwrap_or(Value::Null));
             out.insert(
                 "next_streak_day".into(),
                 next_streak_day.unwrap_or(Value::Null),

@@ -20,8 +20,7 @@ pub async fn load_values(
         }
     }
 
-    let streak_days = if let Some(body) = streak_body.filter(|_| !streak_stale)
-    {
+    let streak_days = if let Some(body) = streak_body.filter(|_| !streak_stale) {
         dig(&body, "streak")
             .and_then(Value::as_object)
             .and_then(|object| object.get("days"))
@@ -88,10 +87,7 @@ pub fn finalize(
     out.insert("report".into(), json!(report));
     out.insert("credits_gained".into(), json!(acc.credits_gained));
     out.insert("energy".into(), energy.unwrap_or(Value::Null));
-    out.insert(
-        "streak_days".into(),
-        streak_days.unwrap_or(Value::Null),
-    );
+    out.insert("streak_days".into(), streak_days.unwrap_or(Value::Null));
     out.insert("idle".into(), json!(idle));
 
     if acc.failures > 0 {

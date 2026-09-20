@@ -6,7 +6,9 @@ use workbuddy_auto_signin::output::Reporter;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let action = std::env::args().nth(1).unwrap_or_else(|| "auto".to_string());
+    let action = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "auto".to_string());
     let action_for_task = action.clone();
     let result = tokio::spawn(async move { app::run(&action_for_task).await }).await;
     let code = match result {

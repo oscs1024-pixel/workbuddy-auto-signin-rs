@@ -5,14 +5,9 @@ use serde_json::{json, Value};
 use crate::model::common::ServiceRun;
 use crate::util::{first_i64, value_truthy};
 
-use super::context::{
-    check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext,
-};
+use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
-pub async fn run(
-    ctx: &GrowthContext<'_>,
-    acc: &mut GrowthAccumulator,
-) -> Option<ServiceRun> {
+pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
         acc.parts.push("时间预算耗尽，任务领奖跳过".to_string());
         return None;
@@ -36,10 +31,7 @@ pub async fn run(
     let mut titles = HashMap::new();
     for task in &tasks {
         if let Some(code) = task.get("task_code").and_then(Value::as_str) {
-            let title = task
-                .get("title")
-                .and_then(Value::as_str)
-                .unwrap_or(code);
+            let title = task.get("title").and_then(Value::as_str).unwrap_or(code);
             titles.insert(code.to_string(), title.to_string());
         }
     }
@@ -50,8 +42,7 @@ pub async fn run(
             let code = task.get("task_code")?.as_str()?;
             let locked = value_truthy(task.get("locked"));
             let status = task.get("accept_status").and_then(Value::as_str);
-            (!locked && status == Some("not_accepted"))
-                .then(|| code.to_string())
+            (!locked && status == Some("not_accepted")).then(|| code.to_string())
         })
         .collect();
 
@@ -72,11 +63,7 @@ pub async fn run(
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_else(|| {
-                let status = if accepted.is_success() {
-                    "ok"
-                } else {
-                    "error"
-                };
+                let status = if accepted.is_success() { "ok" } else { "error" };
                 let message = crate::util::dig(&accepted.body, "msg")
                     .cloned()
                     .unwrap_or(Value::Null);
@@ -107,13 +94,9 @@ pub async fn run(
                     .map(crate::service::signin::display_value)
                     .unwrap_or_else(|| format!("HTTP {}", accepted.code));
 
-                acc.record_failure(
-                    accepted.code,
-                    format!("领取任务「{title}」失败：{message}"),
-                );
+                acc.record_failure(accepted.code, format!("领取任务「{title}」失败：{message}"));
             } else {
-                acc.parts
-                    .push(format!("领取任务「{title}」（进度开始计）"));
+                acc.parts.push(format!("领取任务「{title}」（进度开始计）"));
                 acc.successes += 1;
             }
         }
@@ -127,8 +110,7 @@ pub async fn run(
         }
 
         if value_truthy(task.get("locked"))
-            || task.get("accept_status").and_then(Value::as_str)
-                != Some("completed")
+            || task.get("accept_status").and_then(Value::as_str) != Some("completed")
         {
             continue;
         }
@@ -143,27 +125,13 @@ pub async fn run(
             return Some(no_session());
         }
 
-        if claim.is_success()
-            && !value_truthy(crate::util::dig(
-                &claim.body,
-                "already_claimed",
-            ))
-        {
-            let credit = first_i64(
-                &claim.body,
-                "credit",
-                task.get("reward_credit"),
-            );
-            let energy = first_i64(
-                &claim.body,
-                "energy",
-                task.get("reward_energy"),
-            );
+        if claim.is_success() && !value_truthy(crate::util::dig(&claim.body, "already_claimed")) {
+            let credit = first_i64(&claim.body, "credit", task.get("reward_credit"));
+            let energy = first_i64(&claim.body, "energy", task.get("reward_energy"));
 
             acc.credits_gained += credit;
-            acc.parts.push(format!(
-                "领任务奖「{title}」+credit{credit}+energy{energy}"
-            ));
+            acc.parts
+                .push(format!("领任务奖「{title}」+credit{credit}+energy{energy}"));
             acc.successes += 1;
         } else if claim.is_success() {
             acc.parts.push(format!("任务奖「{title}」已领过"));

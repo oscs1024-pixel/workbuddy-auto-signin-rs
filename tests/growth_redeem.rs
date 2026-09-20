@@ -1,9 +1,7 @@
 use serde_json::json;
 
 use workbuddy_auto_signin::http::HttpResult;
-use workbuddy_auto_signin::service::growth::{
-    is_tier_locked, is_unknown_tier, redeem_reward_desc,
-};
+use workbuddy_auto_signin::service::growth::{is_tier_locked, is_unknown_tier, redeem_reward_desc};
 
 #[test]
 fn redeem_uses_granted_fields_for_actual_reward() {

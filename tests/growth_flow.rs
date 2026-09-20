@@ -87,7 +87,9 @@ async fn idle_growth_flow_runs_all_read_stages_and_reuses_streak() {
     )
     .unwrap();
 
-    let run = GrowthService::new(GrowthApi::new(client), budget).run().await;
+    let run = GrowthService::new(GrowthApi::new(client), budget)
+        .run()
+        .await;
 
     assert_eq!(run.code, 0);
     assert_eq!(run.out["result"], "GROWTH");

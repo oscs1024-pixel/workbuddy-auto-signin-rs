@@ -2,10 +2,7 @@ use workbuddy_auto_signin::cli::Action;
 
 #[test]
 fn legacy_silent_growth_remains_supported() {
-    assert_eq!(
-        Action::parse("silent-growth"),
-        Some(Action::SilentGrowth)
-    );
+    assert_eq!(Action::parse("silent-growth"), Some(Action::SilentGrowth));
     assert!(Action::SilentGrowth.is_poll());
 }
 

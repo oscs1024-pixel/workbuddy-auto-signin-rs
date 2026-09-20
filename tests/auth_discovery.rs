@@ -10,8 +10,7 @@ fn explicit_auth_path_has_priority_and_no_fallback() {
     let fallback = dir.path().join("fallback.info");
     std::fs::write(&fallback, "{}").unwrap();
 
-    let result =
-        discover_from_candidates(Some(explicit.clone()), vec![fallback]);
+    let result = discover_from_candidates(Some(explicit.clone()), vec![fallback]);
 
     assert_eq!(result.found, Some(explicit.clone()));
     assert_eq!(result.looked_in, vec![explicit]);
@@ -24,8 +23,7 @@ fn missing_explicit_path_does_not_fallback() {
     let fallback = dir.path().join("fallback.info");
     std::fs::write(&fallback, "{}").unwrap();
 
-    let result =
-        discover_from_candidates(Some(explicit.clone()), vec![fallback]);
+    let result = discover_from_candidates(Some(explicit.clone()), vec![fallback]);
 
     assert!(result.found.is_none());
     assert_eq!(result.looked_in, vec![explicit]);

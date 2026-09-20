@@ -12,10 +12,7 @@ pub fn as_i64(value: Option<&Value>, default: i64) -> i64 {
             } else if let Some(value) = number.as_u64() {
                 i64::try_from(value).unwrap_or(default)
             } else if let Some(value) = number.as_f64() {
-                if value.is_finite()
-                    && value >= i64::MIN as f64
-                    && value <= i64::MAX as f64
-                {
+                if value.is_finite() && value >= i64::MIN as f64 && value <= i64::MAX as f64 {
                     value.trunc() as i64
                 } else {
                     default
@@ -29,9 +26,7 @@ pub fn as_i64(value: Option<&Value>, default: i64) -> i64 {
             .ok()
             .or_else(|| {
                 value.parse::<f64>().ok().and_then(|number| {
-                    (number.is_finite()
-                        && number >= i64::MIN as f64
-                        && number <= i64::MAX as f64)
+                    (number.is_finite() && number >= i64::MIN as f64 && number <= i64::MAX as f64)
                         .then_some(number.trunc() as i64)
                 })
             })
@@ -47,10 +42,7 @@ pub fn format_credit(value: &Value) -> String {
             if let Ok(number) = value.parse::<i64>() {
                 number.to_string()
             } else if let Ok(number) = value.parse::<f64>() {
-                if number.is_finite()
-                    && number >= i64::MIN as f64
-                    && number <= i64::MAX as f64
-                {
+                if number.is_finite() && number >= i64::MIN as f64 && number <= i64::MAX as f64 {
                     (number.trunc() as i64).to_string()
                 } else {
                     value.clone()
