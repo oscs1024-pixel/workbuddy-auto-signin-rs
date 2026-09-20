@@ -115,8 +115,14 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
                     .map(|value| display_value(&value))
                     .unwrap_or_else(|| "?".to_string());
 
-                acc.parts
-                    .push(format!("派 Buddy 去{location_name}（{duration} 小时后回）"));
+                let message = if matches!(duration.as_str(), "0" | "0.0") {
+                    format!("Buddy 已前往{location_name}（即将返回）")
+                } else if duration == "?" {
+                    format!("Buddy 已前往{location_name}")
+                } else {
+                    format!("Buddy 已前往{location_name}（约 {duration} 小时后返回）")
+                };
+                acc.parts.push(message);
                 acc.successes += 1;
             } else {
                 acc.record_failure(

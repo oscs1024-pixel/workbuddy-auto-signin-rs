@@ -38,6 +38,20 @@ pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, 
     insert(&mut out, "growth", growth_report.clone());
     insert(&mut out, "growth_result", growth_result);
 
+    // 给交互式输出保留结构化成长中心结果；原 growth/report 字段继续存在，兼容旧日志和脚本。
+    let growth_detail = json!({
+        "items": growth_run.out.get("items").cloned().unwrap_or_else(|| json!([])),
+        "energy": growth_run.out.get("energy").cloned().unwrap_or(Value::Null),
+        "streak_days": growth_run.out.get("streak_days").cloned().unwrap_or(Value::Null),
+        "credits_gained": growth_run
+            .out
+            .get("credits_gained")
+            .cloned()
+            .unwrap_or_else(|| json!(0)),
+        "idle": growth_run.out.get("idle").cloned().unwrap_or_else(|| json!(false))
+    });
+    insert(&mut out, "growth_detail", growth_detail);
+
     let credits_gained = as_i64(growth_run.out.get("credits_gained"), 0);
     if credits_gained != 0 {
         if let (Some(main_report), Some(extra)) = (

@@ -124,6 +124,8 @@ workbuddy-auto-signin all
 
 不传参数时默认执行 `auto`。
 
+普通 `auto` / `growth` 默认输出分组后的易读摘要；`silent*` 日志以及 `status` / `claim` / `all` 调试命令仍保持 JSON。需要脚本解析 `auto` / `growth` 时，可设置 `WORKBUDDY_OUTPUT=json`。
+
 ## 凭据探测
 
 按以下顺序查找：
@@ -145,6 +147,7 @@ workbuddy-auto-signin all
 | `WORKBUDDY_SIGNIN_LOG` | silent 模式日志路径 |
 | `WORKBUDDY_BUDGET_SECONDS` | 覆盖单轮网络预算；非法值会回落并输出 `config_warning` |
 | `WORKBUDDY_GROWTH_LOG_EMPTY` | `1/true/yes/on` 时轮询空跑也写日志 |
+| `WORKBUDDY_OUTPUT` | 设为 `json` 时，普通交互命令也输出 JSON |
 
 ## API 契约
 

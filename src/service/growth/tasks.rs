@@ -94,9 +94,9 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
                     .map(crate::service::signin::display_value)
                     .unwrap_or_else(|| format!("HTTP {}", accepted.code));
 
-                acc.record_failure(accepted.code, format!("领取任务「{title}」失败：{message}"));
+                acc.record_failure(accepted.code, format!("接取任务「{title}」失败：{message}"));
             } else {
-                acc.parts.push(format!("领取任务「{title}」（进度开始计）"));
+                acc.parts.push(format!("已接取任务「{title}」"));
                 acc.successes += 1;
             }
         }

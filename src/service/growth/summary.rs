@@ -62,8 +62,10 @@ pub fn finalize(
         tail.push(format!("本次 +共 {} 积分", acc.credits_gained));
     }
 
-    let mut report = if !acc.parts.is_empty() {
-        acc.parts.join("；")
+    // 同时保留结构化步骤，终端展示层无需再从长字符串里反向拆分业务结果。
+    let items = acc.parts.clone();
+    let mut report = if !items.is_empty() {
+        items.join("；")
     } else if acc.failures > 0 {
         "成长中心各步骤均失败".to_string()
     } else {
@@ -85,6 +87,7 @@ pub fn finalize(
     let mut out = Map::new();
     out.insert("result".into(), json!("GROWTH"));
     out.insert("report".into(), json!(report));
+    out.insert("items".into(), json!(items));
     out.insert("credits_gained".into(), json!(acc.credits_gained));
     out.insert("energy".into(), energy.unwrap_or(Value::Null));
     out.insert("streak_days".into(), streak_days.unwrap_or(Value::Null));
