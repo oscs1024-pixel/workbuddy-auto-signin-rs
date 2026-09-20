@@ -1,0 +1,6 @@
+/target
+signin.log
+*.log
+.DS_Store
+.idea/
+.vscode/
