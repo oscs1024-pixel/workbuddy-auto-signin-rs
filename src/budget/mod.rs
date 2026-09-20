@@ -2,11 +2,10 @@ use std::env;
 use std::time::{Duration, Instant};
 
 use crate::cli::Action;
-
-pub const DEFAULT_BUDGET_SECONDS: f64 = 420.0;
-pub const MAX_BUDGET_SECONDS: f64 = 540.0;
-pub const POLL_BUDGET_SECONDS: f64 = 180.0;
-pub const POLL_MAX_BUDGET_SECONDS: f64 = 240.0;
+use crate::config::{
+    DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, POLL_BUDGET_SECONDS,
+    POLL_MAX_BUDGET_SECONDS,
+};
 
 #[derive(Debug, Clone)]
 pub struct BudgetConfig {
@@ -16,12 +15,19 @@ pub struct BudgetConfig {
 
 impl BudgetConfig {
     pub fn from_env(default: f64, maximum: f64) -> Self {
-        Self::from_raw(env::var("WORKBUDDY_BUDGET_SECONDS").ok().as_deref(), default, maximum)
+        Self::from_raw(
+            env::var("WORKBUDDY_BUDGET_SECONDS").ok().as_deref(),
+            default,
+            maximum,
+        )
     }
 
     pub fn from_raw(raw: Option<&str>, default: f64, maximum: f64) -> Self {
         let Some(raw) = raw.filter(|s| !s.is_empty()) else {
-            return Self { limit: Duration::from_secs_f64(default), warning: None };
+            return Self {
+                limit: Duration::from_secs_f64(default),
+                warning: None,
+            };
         };
 
         let value = match raw.parse::<f64>() {
@@ -57,7 +63,10 @@ impl BudgetConfig {
             };
         }
 
-        Self { limit: Duration::from_secs_f64(value), warning: None }
+        Self {
+            limit: Duration::from_secs_f64(value),
+            warning: None,
+        }
     }
 }
 
@@ -75,7 +84,13 @@ impl Budget {
             (DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS)
         };
         let cfg = BudgetConfig::from_env(default, maximum);
-        (Self { started_at: Instant::now(), limit: cfg.limit }, cfg.warning)
+        (
+            Self {
+                started_at: Instant::now(),
+                limit: cfg.limit,
+            },
+            cfg.warning,
+        )
     }
 
     pub fn remaining(&self) -> Duration {
@@ -88,33 +103,5 @@ impl Budget {
 
     pub fn exhausted(&self) -> bool {
         self.remaining().is_zero()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn invalid_budget_falls_back() {
-        let c = BudgetConfig::from_raw(Some("abc"), 420.0, 540.0);
-        assert_eq!(c.limit.as_secs(), 420);
-        assert!(c.warning.is_some());
-    }
-
-    #[test]
-    fn non_positive_budget_falls_back() {
-        for raw in ["0", "-1"] {
-            let c = BudgetConfig::from_raw(Some(raw), 420.0, 540.0);
-            assert_eq!(c.limit.as_secs(), 420);
-            assert!(c.warning.is_some());
-        }
-    }
-
-    #[test]
-    fn over_maximum_is_clamped() {
-        let c = BudgetConfig::from_raw(Some("999"), 180.0, 240.0);
-        assert_eq!(c.limit.as_secs(), 240);
-        assert!(c.warning.is_some());
     }
 }

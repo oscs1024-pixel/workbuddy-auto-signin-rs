@@ -1,0 +1,105 @@
+use serde_json::{json, Map, Value};
+
+use crate::model::common::ServiceRun;
+use crate::service::signin::display_value;
+use crate::util::dig;
+
+use super::context::{check_auth, GrowthAccumulator, GrowthContext};
+
+pub async fn load_values(
+    ctx: &GrowthContext<'_>,
+    streak_body: Option<Value>,
+    streak_stale: bool,
+) -> (Option<Value>, Option<Value>) {
+    let mut energy = None;
+
+    if !ctx.budget.exhausted() {
+        let response = ctx.api.energy().await;
+        if !check_auth(response.code) && response.is_success() {
+            energy = dig(&response.body, "balance").cloned();
+        }
+    }
+
+    let streak_days = if let Some(body) = streak_body.filter(|_| !streak_stale)
+    {
+        dig(&body, "streak")
+            .and_then(Value::as_object)
+            .and_then(|object| object.get("days"))
+            .cloned()
+    } else if !ctx.budget.exhausted() {
+        let response = ctx.api.streak().await;
+
+        if !check_auth(response.code) {
+            dig(&response.body, "streak")
+                .and_then(Value::as_object)
+                .and_then(|object| object.get("days"))
+                .cloned()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    (energy, streak_days)
+}
+
+pub fn finalize(
+    acc: GrowthAccumulator,
+    energy: Option<Value>,
+    streak_days: Option<Value>,
+) -> ServiceRun {
+    let mut tail = Vec::new();
+
+    if let Some(value) = energy.as_ref() {
+        tail.push(format!("能量 {}", display_value(value)));
+    }
+
+    if let Some(value) = streak_days.as_ref() {
+        tail.push(format!("连签 {} 天", display_value(value)));
+    }
+
+    if acc.credits_gained != 0 {
+        tail.push(format!("本次 +共 {} 积分", acc.credits_gained));
+    }
+
+    let mut report = if !acc.parts.is_empty() {
+        acc.parts.join("；")
+    } else if acc.failures > 0 {
+        "成长中心各步骤均失败".to_string()
+    } else {
+        "成长中心无可领取项".to_string()
+    };
+
+    if !tail.is_empty() {
+        report.push_str(&format!("（{}）", tail.join("，")));
+    }
+
+    let code = if acc.hard_failures > 0 && acc.successes == 0 {
+        1
+    } else {
+        0
+    };
+
+    let idle = acc.successes == 0 && acc.failures == 0;
+
+    let mut out = Map::new();
+    out.insert("result".into(), json!("GROWTH"));
+    out.insert("report".into(), json!(report));
+    out.insert("credits_gained".into(), json!(acc.credits_gained));
+    out.insert("energy".into(), energy.unwrap_or(Value::Null));
+    out.insert(
+        "streak_days".into(),
+        streak_days.unwrap_or(Value::Null),
+    );
+    out.insert("idle".into(), json!(idle));
+
+    if acc.failures > 0 {
+        out.insert("failures".into(), json!(acc.failures));
+    }
+
+    ServiceRun {
+        code,
+        out: Value::Object(out),
+    }
+}
