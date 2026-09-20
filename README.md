@@ -7,6 +7,7 @@
 ```text
 workbuddy-auto-signin-rs/
 ├── Cargo.toml
+├── Cargo.lock
 ├── workbuddy-auto-signin.plist.example
 ├── workbuddy-growth-poll.plist.example
 ├── systemd/
@@ -111,7 +112,13 @@ workbuddy-auto-signin-rs/
 - 轮询只在“签到已完成/活动未开启 + Growth 真正 idle”时静默；网络、登录失效和实际失败不会被“无可处理项目”掩盖。
 - macOS、Linux、Windows 都区分 00:05 主签到（`silent`）和 01/05/09/13/17/21 轮询（`silent-poll`），预算与日志语义保持一致。
 
-CI 使用 mock API 验证契约与状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。CI 不持有真实 WorkBuddy 登录凭据，因此真实线上接口若发生服务端改版，仍需以实际响应为准。
+CI 使用 mock API 验证契约与状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
+
+### 已知边界
+
+- CI 不持有真实 WorkBuddy 登录凭据，因此不会对生产账号执行签到、补登、兑换、抽奖等写操作；服务端若改版，仍需以实际响应为准。
+- 当前没有额外的跨进程全局互斥锁。系统定时任务已经按主签到/轮询分开并错峰运行，但手工同时启动多个进程，或手工命令恰好与系统补跑重叠时，仍可能并发执行 Growth 写操作。建议避免并发启动同一程序；如果后续需要支持多实例环境，可再引入跨平台单实例锁。
+- Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应刻意保留宽容 JSON 解析；这是兼容策略，不是遗漏的模型层。
 
 ## 构建
 
@@ -265,9 +272,9 @@ workbuddy-auto-signin-aarch64-apple-darwin.tar.gz
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
-cargo check --all-targets
-cargo test --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+cargo check --locked --all-targets
+cargo test --locked --all-targets
 ```
 
 GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，并额外构建 Linux x64、Windows x64、macOS Intel、macOS Apple Silicon release 产物。
