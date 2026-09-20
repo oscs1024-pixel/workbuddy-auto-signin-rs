@@ -76,6 +76,14 @@ pub struct Budget {
 }
 
 impl Budget {
+    /// 构造固定预算，供集成测试和嵌入式调用精确控制重试边界。
+    pub fn with_limit(limit: Duration) -> Self {
+        Self {
+            started_at: Instant::now(),
+            limit,
+        }
+    }
+
     pub fn for_action(action: Option<Action>) -> (Self, Option<String>) {
         let (default, maximum) = if action.map(Action::is_poll).unwrap_or(false) {
             (POLL_BUDGET_SECONDS, POLL_MAX_BUDGET_SECONDS)

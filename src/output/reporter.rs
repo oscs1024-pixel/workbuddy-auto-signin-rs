@@ -116,6 +116,7 @@ fn render_signin(lines: &mut Vec<String>, out: &Value) {
         "CLAIMED" => "✓ 签到成功",
         "ALREADY" => "✓ 今日已完成",
         "INACTIVE" => "• 活动未开启",
+        "BUSY" => "• 已有实例运行，本次跳过",
         "NO_SESSION" => "! 登录态失效",
         "NO_AUTH" => "! 未找到登录凭据",
         "NETWORK" => "! 网络不可达",
@@ -136,7 +137,14 @@ fn render_signin(lines: &mut Vec<String>, out: &Value) {
 
     if matches!(
         result,
-        "NO_SESSION" | "NO_AUTH" | "NETWORK" | "TIMEOUT" | "ERROR" | "UNKNOWN" | "INACTIVE"
+        "BUSY"
+            | "NO_SESSION"
+            | "NO_AUTH"
+            | "NETWORK"
+            | "TIMEOUT"
+            | "ERROR"
+            | "UNKNOWN"
+            | "INACTIVE"
     ) {
         if let Some(report) = out.get("report").and_then(Value::as_str) {
             lines.push(format!("  {report}"));

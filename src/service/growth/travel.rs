@@ -85,6 +85,12 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             return Some(no_session());
         }
 
+        // config 属于旅行状态机的必要读步骤；最终失败不能静默吞掉，否则整轮可能
+        // 被误判为 idle，导致 silent-poll 把真实服务端/网络故障隐藏掉。
+        if acc.note_http(&config, "查旅行配置") {
+            return None;
+        }
+
         if let Some(location) = dig(&config.body, "locations")
             .and_then(Value::as_array)
             .and_then(|items| items.first())

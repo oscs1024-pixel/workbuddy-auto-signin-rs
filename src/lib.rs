@@ -6,6 +6,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod http;
+pub mod instance_lock;
 pub mod model;
 pub mod output;
 pub mod service;

@@ -76,9 +76,33 @@ pub fn no_session() -> ServiceRun {
 }
 
 pub fn message_or_http(body: &Value, code: i32) -> String {
-    crate::util::dig(body, "msg")
-        .and_then(Value::as_str)
-        .filter(|message| !message.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("HTTP {code}"))
+    // HTTP 业务失败通常给 msg；网络/超时伪状态码则由客户端写入 error。
+    // 两者都保留，避免 Growth 写请求只显示 "HTTP -1" 而丢失真正原因。
+    for key in ["msg", "error"] {
+        if let Some(detail) = crate::util::dig(body, key)
+            .map(display_value)
+            .filter(|detail| !detail.is_empty())
+        {
+            return detail;
+        }
+    }
+
+    http_label(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::message_or_http;
+    use crate::http::CODE_NO_NETWORK;
+
+    #[test]
+    fn message_or_http_keeps_network_error_detail() {
+        assert_eq!(
+            message_or_http(&json!({"error": "connection reset by peer"}), CODE_NO_NETWORK),
+            "connection reset by peer"
+        );
+        assert_eq!(message_or_http(&json!({}), 503), "HTTP 503");
+    }
 }

@@ -10,6 +10,7 @@ use crate::budget::Budget;
 use crate::cli::Action;
 use crate::error::AuthError;
 use crate::http::WorkBuddyClient;
+use crate::instance_lock::{InstanceLock, InstanceLockError};
 use crate::output::Reporter;
 use crate::service::{run_daily, GrowthService, SigninService};
 use crate::util::env_flag;
@@ -30,6 +31,26 @@ pub async fn run(action_name: &str) -> i32 {
             )
         }));
         return 2;
+    };
+
+    // 所有命令共享一个进程级排他锁，防止系统补跑、手工执行或多个计划任务
+    // 在同一时间触发 Growth 不可逆写操作（补登、兑换、抽奖、Buddy 等）。
+    let _instance_lock = match InstanceLock::acquire() {
+        Ok(lock) => lock,
+        Err(InstanceLockError::Busy) => {
+            reporter.emit(json!({
+                "result": "BUSY",
+                "report": "已有 workbuddy-auto-signin 实例正在运行，本次跳过"
+            }));
+            return 0;
+        }
+        Err(InstanceLockError::Io(error)) => {
+            reporter.emit(json!({
+                "result": "ERROR",
+                "report": format!("创建单实例锁失败：{error}")
+            }));
+            return 2;
+        }
     };
 
     let discovery = discover_auth_file();
