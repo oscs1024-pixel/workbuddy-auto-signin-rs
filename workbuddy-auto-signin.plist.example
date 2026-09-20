@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>workbuddy-auto-signin</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/PATH/TO/workbuddy-auto-signin</string>
+        <string>auto</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/PATH/TO</string>
+
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key><integer>0</integer>
+            <key>Minute</key><integer>5</integer>
+        </dict>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>14400</integer>
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/workbuddy-auto-signin.out</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/workbuddy-auto-signin.err</string>
+</dict>
+</plist>
