@@ -102,7 +102,6 @@ async fn idle_growth_flow_runs_all_read_stages_and_reuses_streak() {
         .contains("今日旅行名额已用完"));
 }
 
-
 #[tokio::test]
 async fn stale_makeup_dates_do_not_block_later_candidates() {
     let server = MockServer::start().await;
