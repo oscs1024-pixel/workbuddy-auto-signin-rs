@@ -100,8 +100,7 @@ pub async fn run(
                 let message = message_or_http(&used.body, used.code);
                 if is_no_makeup_needed(&message) {
                     // 服务端可能返回过期的 makeup_dates；“无需补登”属于正常状态，不计失败。
-                    acc.parts
-                        .push(format!("{} 无需补登", display_value(date)));
+                    acc.parts.push(format!("{} 无需补登", display_value(date)));
                 } else {
                     acc.record_failure(
                         used.code,
@@ -126,7 +125,6 @@ pub async fn run(
     })
 }
 
-
 fn is_no_makeup_needed(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
     lower.contains("date is not broken")
@@ -141,9 +139,7 @@ mod tests {
 
     #[test]
     fn no_makeup_needed_is_not_a_failure() {
-        assert!(is_no_makeup_needed(
-            "date is not broken, no makeup needed"
-        ));
+        assert!(is_no_makeup_needed("date is not broken, no makeup needed"));
         assert!(is_no_makeup_needed("该日期无需补登"));
         assert!(!is_no_makeup_needed("insufficient makeup cards"));
     }
