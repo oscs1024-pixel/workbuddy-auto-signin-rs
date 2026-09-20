@@ -29,9 +29,10 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
     };
     let tasks: Vec<Value> = tasks_array.clone();
 
-    if tasks.iter().any(|task| {
-        !task.is_object() || task.get("task_code").and_then(Value::as_str).is_none()
-    }) {
+    if tasks
+        .iter()
+        .any(|task| !task.is_object() || task.get("task_code").and_then(Value::as_str).is_none())
+    {
         acc.record_schema_mismatch("查任务列表", "tasks 中存在缺少 task_code 的条目");
     }
 
@@ -74,9 +75,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             .cloned()
             .unwrap_or_else(|| {
                 let status = if accepted.is_success() { "ok" } else { "error" };
-                let message = dig(&accepted.body, "msg")
-                    .cloned()
-                    .unwrap_or(Value::Null);
+                let message = dig(&accepted.body, "msg").cloned().unwrap_or(Value::Null);
 
                 batch
                     .iter()

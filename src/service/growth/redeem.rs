@@ -36,10 +36,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         })
         .count();
     if known_statuses == 0 {
-        acc.record_schema_mismatch(
-            "查连登兑换",
-            "缺少 starter/advanced/legendary_status",
-        );
+        acc.record_schema_mismatch("查连登兑换", "缺少 starter/advanced/legendary_status");
         return None;
     }
 

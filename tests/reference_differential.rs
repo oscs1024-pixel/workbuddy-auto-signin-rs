@@ -43,12 +43,7 @@ fn request_trace(requests: &[wiremock::Request]) -> Vec<Value> {
 }
 
 fn client(server: &MockServer, budget: Arc<Budget>) -> WorkBuddyClient {
-    WorkBuddyClient::new(
-        Url::parse(&server.uri()).unwrap(),
-        HeaderMap::new(),
-        budget,
-    )
-    .unwrap()
+    WorkBuddyClient::new(Url::parse(&server.uri()).unwrap(), HeaderMap::new(), budget).unwrap()
 }
 
 #[tokio::test]
@@ -59,9 +54,7 @@ async fn signin_request_and_result_match_pinned_reference_contract() {
 
     Mock::given(method("POST"))
         .and(path("/v2/billing/meter/checkin-activity-status"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(case["status_response"].clone()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(case["status_response"].clone()))
         .expect(1)
         .mount(&server)
         .await;
@@ -88,20 +81,11 @@ async fn growth_idle_sequence_and_result_match_pinned_reference_contract() {
     let server = MockServer::start().await;
 
     for (route, key) in [
-        (
-            "/v2/activity/growth/buddy/travel/status",
-            "travel_status",
-        ),
+        ("/v2/activity/growth/buddy/travel/status", "travel_status"),
         ("/v2/activity/growth/tasks", "tasks"),
         ("/v2/activity/growth/streak", "streak"),
-        (
-            "/v2/activity/growth/redeem/summary",
-            "redeem_summary",
-        ),
-        (
-            "/v2/activity/growth/lottery/chances",
-            "lottery_chances",
-        ),
+        ("/v2/activity/growth/redeem/summary", "redeem_summary"),
+        ("/v2/activity/growth/lottery/chances", "lottery_chances"),
         ("/v2/activity/growth/buddy/quota", "buddy_quota"),
         ("/v2/activity/growth/energy", "energy"),
     ] {

@@ -169,10 +169,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         let arrive_at = dig(&status.body, "arrive_at");
         let server_now = dig(&status.body, "server_now");
         if arrive_at.is_none() || server_now.is_none() {
-            acc.record_schema_mismatch(
-                "查旅行状态",
-                "traveling 状态缺少 arrive_at 或 server_now",
-            );
+            acc.record_schema_mismatch("查旅行状态", "traveling 状态缺少 arrive_at 或 server_now");
         }
         let eta = format_eta(arrive_at, server_now);
 

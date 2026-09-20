@@ -319,7 +319,10 @@ fn append_first(paths: &[PathBuf], bytes: &[u8]) -> Option<PathBuf> {
 }
 
 fn append(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent)?;
     }
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;

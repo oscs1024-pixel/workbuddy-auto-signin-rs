@@ -109,7 +109,6 @@ pub fn finalize(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
