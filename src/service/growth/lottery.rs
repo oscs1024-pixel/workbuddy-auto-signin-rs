@@ -91,3 +91,58 @@ pub fn is_no_chance(message: &str) -> bool {
 
     message.contains("no chance")
 }
+
+
+#[cfg(test)]
+mod state_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use reqwest::header::HeaderMap;
+    use serde_json::json;
+    use url::Url;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::api::GrowthApi;
+    use crate::budget::Budget;
+    use crate::http::WorkBuddyClient;
+
+    use super::*;
+    use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
+
+    #[tokio::test]
+    async fn draws_only_once_even_with_multiple_chances() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/lottery/chances"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data":{"balance":3}})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/lottery/draw"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data":{"prize_name":"积分"}})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let client = WorkBuddyClient::new(
+            Url::parse(&server.uri()).unwrap(),
+            HeaderMap::new(),
+            budget.clone(),
+        )
+        .unwrap();
+        let api = GrowthApi::new(client);
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.successes, 1);
+        assert!(acc.parts.iter().any(|part| part.contains("还剩 2 次")));
+    }
+}

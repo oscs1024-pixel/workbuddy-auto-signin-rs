@@ -158,3 +158,109 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
 
     None
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use reqwest::header::HeaderMap;
+    use serde_json::json;
+    use url::Url;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::api::GrowthApi;
+    use crate::budget::Budget;
+    use crate::http::WorkBuddyClient;
+
+    use super::*;
+    use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
+
+    fn api(server: &MockServer, budget: Arc<Budget>) -> GrowthApi {
+        let client = WorkBuddyClient::new(
+            Url::parse(&server.uri()).unwrap(),
+            HeaderMap::new(),
+            budget,
+        )
+        .unwrap();
+        GrowthApi::new(client)
+    }
+
+    #[tokio::test]
+    async fn travel_config_hard_failure_is_recorded() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/buddy/travel/status"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data":{"state":"idle","daily_limit_reached":false}})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/buddy/travel/config"))
+            .respond_with(ResponseTemplate::new(503).set_body_json(json!({"msg":"unavailable"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // 预算小于 3s 退避 + 30s 请求上限，因此 503 不会进入真实 sleep 重试。
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let api = api(&server, budget.clone());
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.failures, 1);
+        assert_eq!(acc.hard_failures, 1);
+        assert!(acc
+            .parts
+            .iter()
+            .any(|part| part.contains("查旅行配置失败")));
+    }
+
+    #[tokio::test]
+    async fn failed_travel_claim_never_departs() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/buddy/travel/status"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data":{"state":"arrived","record_id":"r1"}})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/buddy/travel/claim"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({"msg":"claim failed"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let api = api(&server, budget.clone());
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.failures, 1);
+
+        let requests = server.received_requests().await.unwrap();
+        let paths: Vec<_> = requests.iter().map(|request| request.url.path()).collect();
+        assert_eq!(
+            paths,
+            vec![
+                "/v2/activity/growth/buddy/travel/status",
+                "/v2/activity/growth/buddy/travel/claim"
+            ]
+        );
+    }
+}

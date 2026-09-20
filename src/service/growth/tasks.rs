@@ -148,3 +148,86 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
 
     None
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use reqwest::header::HeaderMap;
+    use serde_json::json;
+    use url::Url;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::api::GrowthApi;
+    use crate::budget::Budget;
+    use crate::http::WorkBuddyClient;
+
+    use super::*;
+    use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
+
+    #[tokio::test]
+    async fn accepts_tasks_in_batches_of_twenty_and_synthesizes_missing_results() {
+        let server = MockServer::start().await;
+        let codes: Vec<String> = (0..21).map(|index| format!("task-{index:02}")).collect();
+        let tasks: Vec<_> = codes
+            .iter()
+            .map(|code| {
+                json!({
+                    "task_code": code,
+                    "title": code,
+                    "locked": false,
+                    "accept_status": "not_accepted"
+                })
+            })
+            .collect();
+
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data":{"tasks":tasks}})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/tasks/accept"))
+            .and(body_json(json!({"task_codes": &codes[..20]})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/tasks/accept"))
+            .and(body_json(json!({"task_codes": &codes[20..]})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let client = WorkBuddyClient::new(
+            Url::parse(&server.uri()).unwrap(),
+            HeaderMap::new(),
+            budget.clone(),
+        )
+        .unwrap();
+        let api = GrowthApi::new(client);
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.successes, 21);
+        assert_eq!(
+            acc.parts
+                .iter()
+                .filter(|part| part.starts_with("已接取任务"))
+                .count(),
+            21
+        );
+    }
+}

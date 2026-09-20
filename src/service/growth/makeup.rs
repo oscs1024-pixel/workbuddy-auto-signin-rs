@@ -157,3 +157,73 @@ mod tests {
         assert!(!is_no_makeup_needed("insufficient makeup cards"));
     }
 }
+
+
+#[cfg(test)]
+mod state_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use reqwest::header::HeaderMap;
+    use serde_json::json;
+    use url::Url;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::api::GrowthApi;
+    use crate::budget::Budget;
+    use crate::http::WorkBuddyClient;
+
+    use super::*;
+    use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
+
+    #[tokio::test]
+    async fn consumes_at_most_one_makeup_card_per_run() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/streak"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {
+                    "makeup_cards": {"balance": 2},
+                    "streak": {
+                        "days": 10,
+                        "makeup_dates": ["2026-09-01", "2026-09-02"]
+                    }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/makeup-cards/use"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data":{"makeup_cards":{"balance":1}}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let client = WorkBuddyClient::new(
+            Url::parse(&server.uri()).unwrap(),
+            HeaderMap::new(),
+            budget.clone(),
+        )
+        .unwrap();
+        let api = GrowthApi::new(client);
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        let state = run(&ctx, &mut acc).await.unwrap();
+        assert!(state.streak_stale);
+        assert_eq!(acc.successes, 1);
+        assert!(acc
+            .parts
+            .iter()
+            .any(|part| part.contains("另有 1 天可补")));
+    }
+}

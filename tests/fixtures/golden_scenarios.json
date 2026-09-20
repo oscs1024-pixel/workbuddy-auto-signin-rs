@@ -1,0 +1,45 @@
+{
+  "signin_already": {
+    "status": {
+      "data": {
+        "today_credit": "100",
+        "streak_days": 5,
+        "total_credits": 500,
+        "is_streak_day": false,
+        "next_streak_day": 7
+      }
+    },
+    "expected": {
+      "result": "ALREADY",
+      "report": "今日已签过（今日 +100，连续 5 天，累计 500 积分）",
+      "today_credit": "100",
+      "streak_days": 5,
+      "total_credits": 500,
+      "is_streak_day": false,
+      "next_streak_day": 7
+    }
+  },
+  "redeem_reward_14d": {
+    "body": {
+      "credit_granted": "50",
+      "energy_granted": 3,
+      "cards_granted": 1,
+      "chances_granted": 1
+    },
+    "expected": "（+50 积分 +3 能量 +1 补登卡 +1 次抽奖）"
+  },
+  "eta": {
+    "arrive_at": 3599,
+    "server_now": 0,
+    "expected": "，约 1.0 小时后回"
+  },
+  "lottery_no_chance": {
+    "message": "insufficient lottery chance balance",
+    "expected": true
+  },
+  "buddy_count": {
+    "affordable": 5,
+    "max_open_count": 2,
+    "expected": 2
+  }
+}

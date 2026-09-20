@@ -146,3 +146,137 @@ pub fn redeem_reward_desc(body: &Value, tier: &str) -> String {
 
     format!("（{fallback}）")
 }
+
+
+#[cfg(test)]
+mod state_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use reqwest::header::HeaderMap;
+    use serde_json::{json, Value};
+    use url::Url;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
+
+    use crate::api::GrowthApi;
+    use crate::budget::Budget;
+    use crate::http::WorkBuddyClient;
+
+    use super::*;
+    use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
+
+    #[derive(Clone)]
+    struct Tier(Value);
+
+    impl Match for Tier {
+        fn matches(&self, request: &Request) -> bool {
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|body| body.get("tier").cloned())
+                .is_some_and(|tier| tier == self.0)
+        }
+    }
+
+    fn setup(server: &MockServer, budget: Arc<Budget>) -> (GrowthApi, Arc<Budget>) {
+        let client = WorkBuddyClient::new(
+            Url::parse(&server.uri()).unwrap(),
+            HeaderMap::new(),
+            budget.clone(),
+        )
+        .unwrap();
+        (GrowthApi::new(client), budget)
+    }
+
+    #[tokio::test]
+    async fn fallback_redeem_uses_a_fresh_client_token() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/redeem/summary"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {
+                    "starter_status": "available",
+                    "advanced_status": "locked",
+                    "legendary_status": "locked"
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/redeem"))
+            .and(Tier(json!("7d")))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({"msg":"unknown tier"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/redeem"))
+            .and(Tier(json!(7)))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data":{"energy_granted":2}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let (api, budget) = setup(&server, budget);
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.successes, 1);
+
+        let requests = server.received_requests().await.unwrap();
+        let redeem_requests: Vec<_> = requests
+            .iter()
+            .filter(|request| request.url.path() == "/v2/activity/growth/redeem")
+            .collect();
+        assert_eq!(redeem_requests.len(), 2);
+
+        let first: Value = serde_json::from_slice(&redeem_requests[0].body).unwrap();
+        let second: Value = serde_json::from_slice(&redeem_requests[1].body).unwrap();
+        assert_ne!(first["client_token"], second["client_token"]);
+    }
+
+    #[tokio::test]
+    async fn locked_tier_is_business_state_not_auth_failure() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v2/activity/growth/redeem/summary"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {
+                    "starter_status": "available",
+                    "advanced_status": "locked",
+                    "legendary_status": "locked"
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v2/activity/growth/redeem"))
+            .respond_with(
+                ResponseTemplate::new(403)
+                    .set_body_json(json!({"msg":"连续登录天数不足"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let budget = Arc::new(Budget::with_limit(Duration::from_secs(5)));
+        let (api, budget) = setup(&server, budget);
+        let ctx = GrowthContext {
+            api: &api,
+            budget: &budget,
+        };
+        let mut acc = GrowthAccumulator::default();
+
+        assert!(run(&ctx, &mut acc).await.is_none());
+        assert_eq!(acc.failures, 0);
+        assert!(acc.parts.iter().any(|part| part.contains("未解锁")));
+    }
+}
