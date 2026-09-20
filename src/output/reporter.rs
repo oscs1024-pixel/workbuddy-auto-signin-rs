@@ -51,6 +51,7 @@ impl Reporter {
         let payload = serialize_safe(&out);
         let is_error = out.get("result").and_then(Value::as_str) == Some("ERROR");
 
+        // silent* 运行于无控制台场景，直接写日志；交互命令优先 stdout。
         if !self.action.starts_with("silent") {
             let stdout_ok = writeln!(io::stdout().lock(), "{payload}").is_ok();
             if stdout_ok && !is_error {
@@ -68,6 +69,7 @@ impl Reporter {
             .map(PathBuf::from)
             .unwrap_or_else(|| self.default_log.clone());
 
+        // 自定义日志路径不可写时回退到默认路径，尽量保证计划任务的失败信息不会无声丢失。
         for path in unique_paths(requested, self.default_log.clone()) {
             if append(&path, line.as_bytes()).is_ok() {
                 return;

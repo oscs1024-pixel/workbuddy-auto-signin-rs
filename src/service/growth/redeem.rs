@@ -49,6 +49,7 @@ pub async fn run(
             continue;
         }
 
+        // 主契约使用 7d/14d/28d；只有服务端明确表示“不认识 tier”时才退回数字天数重试。
         let mut redeemed = ctx
             .api
             .redeem(json!(tier), client_token("u"))
@@ -61,6 +62,7 @@ pub async fn run(
                 .await;
         }
 
+        // 403“连登天数不足”是业务常态，必须先于通用 401/403 登录失效判断。
         if is_tier_locked(&redeemed) {
             acc.parts
                 .push(format!("连登兑换「{label}」未解锁（连登天数不足）"));
@@ -143,6 +145,7 @@ pub fn redeem_reward_desc(body: &Value, tier: &str) -> String {
         return format!("（{}）", bits.join(" "));
     }
 
+    // 服务端未返回 *_granted 时才使用活动文案兜底，避免把配置奖励误当成实际到账值。
     let fallback = match tier {
         "7d" => "+2 能量 +1 补登卡 +1 次抽奖",
         "14d" => "+50 积分 +3 能量 +1 补登卡 +1 次抽奖",

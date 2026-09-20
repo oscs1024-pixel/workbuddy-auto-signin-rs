@@ -33,6 +33,9 @@ impl GrowthService {
         };
         let mut acc = GrowthAccumulator::default();
 
+        // 执行顺序有业务依赖：任务奖励可能产生能量/抽奖机会；补登可能改变连签天数并解锁兑换。
+        // 因此保持“旅行 → 任务 → 补登 → 兑换 → 抽奖 → Buddy → 汇总”，不要随意并发或重排。
+
         if let Some(run) = travel::run(&ctx, &mut acc).await {
             return run;
         }

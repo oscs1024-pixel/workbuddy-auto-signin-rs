@@ -1,12 +1,16 @@
 # workbuddy-auto-signin-rs
 
-`workbuddy-auto-signin` 的 Rust 重构版。目标是保持原 Python 脚本的业务语义，同时提供单一原生二进制、结构化模块、可测试 HTTP 层和跨平台定时运行模板。
+`workbuddy-auto-signin-rs` 是一个本地运行的 WorkBuddy 自动签到与成长中心工具。项目采用 Rust 原生实现，提供单一原生二进制、结构化模块、可测试 HTTP 层和跨平台定时运行模板。
 
 ## 工程结构
 
 ```text
 workbuddy-auto-signin/
 ├── Cargo.toml
+├── workbuddy-auto-signin.plist.example
+├── systemd/
+│   ├── workbuddy-auto-signin.service
+│   └── workbuddy-auto-signin.timer
 ├── src/
 │   ├── main.rs
 │   ├── cli.rs
@@ -69,11 +73,11 @@ workbuddy-auto-signin/
     ├── growth_redeem.rs
     ├── growth_lottery.rs
     ├── growth_buddy.rs
+    ├── growth_flow.rs
     ├── cli_compat.rs
     └── fixtures/
 ```
 
-> 上游实现基线：[`88lin/workbuddy-auto-signin@2b05ef0`](https://github.com/88lin/workbuddy-auto-signin/commit/2b05ef0112319b9e9e3a8021757320371d0f88a9)（2026-09-19）。原项目 MIT License；本仓库保留原版权与许可声明。
 
 ## 已实现能力
 
@@ -199,7 +203,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 
 ### Linux
 
-`systemd/` 提供 user service/timer 示例。把 `%h/.local/bin/workbuddy-auto-signin` 改为你的实际路径即可。
+`systemd/` 提供 user service/timer 示例，默认二进制路径为 `%h/.local/bin/workbuddy-auto-signin`。如果安装位置不同，修改 service 中的 `ExecStart` 即可；定时器会在 00:05 以及 01/05/09/13/17/21 点运行，并通过 systemd journal 保留输出。
 
 ## 测试
 

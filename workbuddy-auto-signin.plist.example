@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>workbuddy-auto-signin</string>
+    <string>com.workbuddy.auto-signin</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -11,21 +11,21 @@
         <string>auto</string>
     </array>
 
-    <key>WorkingDirectory</key>
-    <string>/PATH/TO</string>
-
-    <key>StartCalendarInterval</key>
-    <array>
-        <dict>
-            <key>Hour</key><integer>0</integer>
-            <key>Minute</key><integer>5</integer>
-        </dict>
-    </array>
-
-    <key>StartInterval</key>
-    <integer>14400</integer>
+    <!-- 登录后补跑一次；接口本身幂等，不会重复领取签到积分。 -->
     <key>RunAtLoad</key>
     <true/>
+
+    <!-- 00:05 主签到 + 01/05/09/13/17/21 成长中心轮询与补签。 -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Hour</key><integer>1</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
 
     <key>StandardOutPath</key>
     <string>/tmp/workbuddy-auto-signin.out</string>

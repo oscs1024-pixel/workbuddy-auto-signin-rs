@@ -97,6 +97,7 @@ impl WorkBuddyClient {
         payload: Option<&Value>,
         retry: bool,
     ) -> HttpResult {
+        // 每个网络请求都受单轮总预算约束。预算不足时主动收尾，避免被外部计划任务强杀后丢失最终日志。
         if self.budget.remaining_secs_f64() <= 1.0 {
             return HttpResult {
                 code: CODE_BUDGET_OUT,
@@ -116,6 +117,7 @@ impl WorkBuddyClient {
             return result;
         }
 
+        // 网络不可达和 5xx 使用不同退避表，并分别记录进度；失败类型切换时不会误用另一类的重试次数。
         let mut attempts: HashMap<RetryClass, usize> = HashMap::new();
         loop {
             let Some((class, delays)) = retry_delays(result.code) else {
@@ -151,10 +153,12 @@ impl WorkBuddyClient {
         self.request(Method::GET, path, None, true).await
     }
 
+    // Growth 写操作默认只发一次：请求超时并不代表服务端未处理，盲目重试可能造成重复领取/抽奖。
     pub async fn post_once(&self, path: &str, payload: Option<&Value>) -> HttpResult {
         self.request(Method::POST, path, payload, false).await
     }
 
+    // 仅供明确具备幂等语义的 POST 使用（当前是两个 Billing 签到接口）。
     pub async fn post_retryable(
         &self,
         path: &str,

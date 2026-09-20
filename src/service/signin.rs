@@ -24,6 +24,7 @@ impl SigninService {
     }
 
     pub async fn run(&self) -> ServiceRun {
+        // 先查状态再领取，保证重复执行时不会主动制造重复写请求。
         let status_result = self.api.status().await;
 
         if status_result.code == CODE_BUDGET_OUT {
@@ -93,6 +94,7 @@ impl SigninService {
             };
         }
 
+        // daily-checkin 服务端按“当天”幂等，因此它是少数允许网络/5xx 重试的写接口。
         let claim = self.api.claim().await;
 
         if matches!(claim.code, CODE_NO_NETWORK | CODE_BUDGET_OUT) {
@@ -117,6 +119,7 @@ impl SigninService {
             return no_session_with_http(claim.code);
         }
 
+        // 兼容服务端两种“已签到”形态：JSON null，或业务码/文案提示已签。
         if is_already_checked_in(&claim.body) {
             let fresh_result = self.api.status().await;
             let fresh = if fresh_result.is_success() && fresh_result.body.is_object() {
@@ -132,6 +135,7 @@ impl SigninService {
         }
 
         if let Some(credit) = dig(&claim.body, "credit").cloned() {
+            // 领取成功后再查一次状态，尽量返回最新连签天数和累计积分；刷新失败则回退到领取前状态。
             let fresh_result = self.api.status().await;
             let fresh = if fresh_result.is_success() && fresh_result.body.is_object() {
                 fresh_result.body
