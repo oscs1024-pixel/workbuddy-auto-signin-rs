@@ -84,16 +84,17 @@ pub async fn run(
                 .use_makeup_card(date.clone(), client_token("u"))
                 .await;
 
+            // 登录失效必须优先于业务文案判断，避免 401/403 被“无需补登”等文本误吞。
+            if check_auth(used.code) {
+                return Err(no_session());
+            }
+
             let message = message_or_http(&used.body, used.code);
             if !used.is_success() && is_no_makeup_needed(&message) {
                 // “无需补登”不消耗卡，继续看下一个候选日期；同时标记本轮 streak 响应已过时。
                 streak_stale = true;
                 acc.parts.push(format!("{} 无需补登", display_value(date)));
                 continue;
-            }
-
-            if check_auth(used.code) {
-                return Err(no_session());
             }
 
             if used.is_success() {
