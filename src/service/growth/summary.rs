@@ -96,9 +96,39 @@ pub fn finalize(
     if acc.failures > 0 {
         out.insert("failures".into(), json!(acc.failures));
     }
+    if acc.hard_failures > 0 {
+        out.insert("hard_failures".into(), json!(acc.hard_failures));
+    }
+    if acc.schema_mismatches > 0 {
+        out.insert("schema_mismatches".into(), json!(acc.schema_mismatches));
+    }
 
     ServiceRun {
         code,
         out: Value::Object(out),
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::HttpResult;
+
+    #[test]
+    fn soft_failure_is_not_idle_and_does_not_fail_exit_code() {
+        let mut acc = GrowthAccumulator::default();
+        acc.note_http(
+            &HttpResult {
+                code: 404,
+                body: json!({"msg":"endpoint moved"}),
+            },
+            "查任务列表",
+        );
+
+        let run = finalize(acc, None, None);
+        assert_eq!(run.code, 0);
+        assert_eq!(run.out["idle"], false);
+        assert_eq!(run.out["failures"], 1);
     }
 }

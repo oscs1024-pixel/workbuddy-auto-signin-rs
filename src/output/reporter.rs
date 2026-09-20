@@ -12,6 +12,7 @@ pub struct Reporter {
     action: String,
     config_warning: Option<String>,
     default_log: PathBuf,
+    fallback_log: PathBuf,
 }
 
 impl Reporter {
@@ -22,10 +23,16 @@ impl Reporter {
             .unwrap_or_else(|| PathBuf::from("."))
             .join("signin.log");
 
+        let fallback_log = dirs::cache_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("workbuddy-auto-signin")
+            .join("signin.log");
+
         Self {
             action: action.into(),
             config_warning,
             default_log,
+            fallback_log,
         }
     }
 
@@ -55,15 +62,20 @@ impl Reporter {
 
         let requested = std::env::var_os("WORKBUDDY_SIGNIN_LOG")
             .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| self.default_log.clone());
+            .map(PathBuf::from);
 
-        // 自定义日志路径不可写时回退到默认路径，尽量保证计划任务的失败信息不会无声丢失。
-        for path in unique_paths(requested, self.default_log.clone()) {
-            if append(&path, line.as_bytes()).is_ok() {
-                return;
-            }
+        // 日志路径按“显式配置 → 可执行文件旁 → 用户 cache”逐级回退。
+        // 三处都不可写时至少写 stderr：systemd/launchd 能继续捕获，避免 silent 无声丢结果。
+        let paths = unique_paths(
+            requested
+                .into_iter()
+                .chain([self.default_log.clone(), self.fallback_log.clone()]),
+        );
+        if append_first(&paths, line.as_bytes()).is_some() {
+            return;
         }
+
+        let _ = write!(io::stderr().lock(), "{line}");
     }
 
     fn use_json_stdout(&self) -> bool {
@@ -287,15 +299,29 @@ fn display_scalar(value: &Value) -> String {
     }
 }
 
-fn unique_paths(first: PathBuf, second: PathBuf) -> Vec<PathBuf> {
-    if first == second {
-        vec![first]
-    } else {
-        vec![first, second]
+fn unique_paths(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
+    let mut unique = Vec::new();
+    for path in paths {
+        if !unique.contains(&path) {
+            unique.push(path);
+        }
     }
+    unique
+}
+
+fn append_first(paths: &[PathBuf], bytes: &[u8]) -> Option<PathBuf> {
+    for path in paths {
+        if append(path, bytes).is_ok() {
+            return Some(path.clone());
+        }
+    }
+    None
 }
 
 fn append(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     file.write_all(bytes)
 }
@@ -303,8 +329,9 @@ fn append(path: &Path, bytes: &[u8]) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use tempfile::tempdir;
 
-    use super::render_human;
+    use super::{append_first, render_human};
 
     #[test]
     fn daily_human_output_is_grouped_and_readable() {
@@ -346,6 +373,18 @@ mod tests {
         assert!(rendered.starts_with("成长中心\n"));
         assert!(rendered.contains("网络不可达，成长中心跳过"));
         assert!(!rendered.starts_with("签到"));
+    }
+
+    #[test]
+    fn log_writer_falls_back_when_primary_path_is_not_a_file() {
+        let dir = tempdir().unwrap();
+        let invalid = dir.path().join("invalid");
+        std::fs::create_dir(&invalid).unwrap();
+        let fallback = dir.path().join("cache").join("signin.log");
+
+        let written = append_first(&[invalid, fallback.clone()], b"hello\n");
+        assert_eq!(written.as_deref(), Some(fallback.as_path()));
+        assert_eq!(std::fs::read_to_string(fallback).unwrap(), "hello\n");
     }
 
     #[test]

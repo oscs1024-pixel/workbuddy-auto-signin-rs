@@ -3,7 +3,7 @@ use serde_json::Value;
 use crate::config::MAKEUP_MAX_PER_RUN;
 use crate::model::common::ServiceRun;
 use crate::service::signin::display_value;
-use crate::util::{as_i64, client_token, dig};
+use crate::util::{as_i64, client_token, dig, try_i64};
 
 use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
@@ -24,7 +24,7 @@ pub async fn run(
     acc: &mut GrowthAccumulator,
 ) -> Result<MakeupState, ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts.push("时间预算耗尽，补登跳过".to_string());
+        acc.record_budget_exhausted("时间预算耗尽，补登跳过");
         return Ok(MakeupState {
             streak_body: None,
             streak_stale: false,
@@ -45,10 +45,32 @@ pub async fn run(
     }
 
     let streak_body = Some(response.body.clone());
-    let mut cards = parse_makeup_cards(dig(&response.body, "makeup_cards"));
+    let Some(streak_object) = dig(&response.body, "streak").and_then(Value::as_object) else {
+        acc.record_schema_mismatch("查连登状态", "缺少对象字段 streak");
+        return Ok(MakeupState {
+            streak_body,
+            streak_stale: false,
+        });
+    };
+    if streak_object.get("days").is_none() {
+        acc.record_schema_mismatch("查连登状态", "streak 缺少 days");
+    }
 
-    let nested_dates = dig(&response.body, "streak")
-        .and_then(Value::as_object)
+    let cards_value = dig(&response.body, "makeup_cards");
+    if cards_value.is_none() {
+        acc.record_schema_mismatch("查连登状态", "缺少 makeup_cards");
+    } else {
+        let numeric = cards_value
+            .and_then(Value::as_object)
+            .and_then(|object| object.get("balance"))
+            .or(cards_value);
+        if try_i64(numeric).is_none() {
+            acc.record_schema_mismatch("查连登状态", "makeup_cards 无法解析为余额");
+        }
+    }
+    let mut cards = parse_makeup_cards(cards_value);
+
+    let nested_dates = Some(streak_object)
         .and_then(|object| object.get("makeup_dates"))
         .and_then(Value::as_array);
 
@@ -74,7 +96,7 @@ pub async fn run(
                 break;
             }
             if ctx.budget.exhausted() {
-                acc.parts.push("时间预算耗尽，剩余补登下次再做".to_string());
+                acc.record_budget_exhausted("时间预算耗尽，剩余补登下次再做");
                 break;
             }
 

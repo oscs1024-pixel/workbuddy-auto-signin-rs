@@ -14,7 +14,7 @@ const REDEEM_TIERS: &[(&str, &str, &str, i64)] = &[
 
 pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts.push("时间预算耗尽，连登兑换跳过".to_string());
+        acc.record_budget_exhausted("时间预算耗尽，连登兑换跳过");
         return None;
     }
 
@@ -28,15 +28,33 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         return None;
     }
 
+    let known_statuses = REDEEM_TIERS
+        .iter()
+        .filter(|(_, status_key, _, _)| {
+            let key = format!("{status_key}_status");
+            dig(&summary.body, &key).is_some()
+        })
+        .count();
+    if known_statuses == 0 {
+        acc.record_schema_mismatch(
+            "查连登兑换",
+            "缺少 starter/advanced/legendary_status",
+        );
+        return None;
+    }
+
     for (tier, status_key, label, days) in REDEEM_TIERS {
         if ctx.budget.exhausted() {
-            acc.parts
-                .push("时间预算耗尽，剩余连登兑换下次再领".to_string());
+            acc.record_budget_exhausted("时间预算耗尽，剩余连登兑换下次再领");
             break;
         }
 
         let key = format!("{status_key}_status");
-        let Some(status) = dig(&summary.body, &key).and_then(Value::as_str) else {
+        let Some(status_value) = dig(&summary.body, &key) else {
+            continue;
+        };
+        let Some(status) = status_value.as_str() else {
+            acc.record_schema_mismatch("查连登兑换", format!("{key} 不是字符串"));
             continue;
         };
 

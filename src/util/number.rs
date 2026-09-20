@@ -1,39 +1,34 @@
 use serde_json::Value;
 
-pub fn as_i64(value: Option<&Value>, default: i64) -> i64 {
-    let Some(value) = value else {
-        return default;
-    };
+pub fn try_i64(value: Option<&Value>) -> Option<i64> {
+    let value = value?;
 
     match value {
         Value::Number(number) => {
             if let Some(value) = number.as_i64() {
-                value
+                Some(value)
             } else if let Some(value) = number.as_u64() {
-                i64::try_from(value).unwrap_or(default)
+                i64::try_from(value).ok()
             } else if let Some(value) = number.as_f64() {
-                if value.is_finite() && value >= i64::MIN as f64 && value <= i64::MAX as f64 {
-                    value.trunc() as i64
-                } else {
-                    default
-                }
+                (value.is_finite() && value >= i64::MIN as f64 && value <= i64::MAX as f64)
+                    .then_some(value.trunc() as i64)
             } else {
-                default
+                None
             }
         }
-        Value::String(value) => value
-            .parse::<i64>()
-            .ok()
-            .or_else(|| {
-                value.parse::<f64>().ok().and_then(|number| {
-                    (number.is_finite() && number >= i64::MIN as f64 && number <= i64::MAX as f64)
-                        .then_some(number.trunc() as i64)
-                })
+        Value::String(value) => value.parse::<i64>().ok().or_else(|| {
+            value.parse::<f64>().ok().and_then(|number| {
+                (number.is_finite() && number >= i64::MIN as f64 && number <= i64::MAX as f64)
+                    .then_some(number.trunc() as i64)
             })
-            .unwrap_or(default),
-        Value::Bool(value) => i64::from(*value),
-        _ => default,
+        }),
+        Value::Bool(value) => Some(i64::from(*value)),
+        _ => None,
     }
+}
+
+pub fn as_i64(value: Option<&Value>, default: i64) -> i64 {
+    try_i64(value).unwrap_or(default)
 }
 
 pub fn format_credit(value: &Value) -> String {

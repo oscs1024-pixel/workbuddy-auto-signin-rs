@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::model::common::ServiceRun;
-use crate::util::{as_i64, client_token, dig};
+use crate::util::{client_token, dig, try_i64};
 
 use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
@@ -11,7 +11,7 @@ pub fn compute_open_count(affordable: i64, max_open_count: i64) -> i64 {
 
 pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts.push("时间预算耗尽，Buddy 盲盒跳过".to_string());
+        acc.record_budget_exhausted("时间预算耗尽，Buddy 盲盒跳过");
         return None;
     }
 
@@ -25,8 +25,20 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         return None;
     }
 
-    let affordable = as_i64(dig(&quota.body, "affordable"), 0);
-    let max_open_count = as_i64(dig(&quota.body, "max_open_count"), 1);
+    let Some(affordable) = try_i64(dig(&quota.body, "affordable")) else {
+        acc.record_schema_mismatch("查 Buddy 能量", "缺少或无法解析 affordable");
+        return None;
+    };
+    let max_open_count = match dig(&quota.body, "max_open_count") {
+        Some(value) => match try_i64(Some(value)) {
+            Some(value) => value,
+            None => {
+                acc.record_schema_mismatch("查 Buddy 能量", "max_open_count 无法解析");
+                1
+            }
+        },
+        None => 1,
+    };
 
     if affordable <= 0 {
         return None;

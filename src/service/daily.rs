@@ -52,7 +52,17 @@ pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, 
             .cloned()
             .unwrap_or_else(|| json!(0)),
         "idle": growth_run.out.get("idle").cloned().unwrap_or(Value::Bool(false)),
-        "failures": growth_run.out.get("failures").cloned().unwrap_or_else(|| json!(0))
+        "failures": growth_run.out.get("failures").cloned().unwrap_or_else(|| json!(0)),
+        "hard_failures": growth_run
+            .out
+            .get("hard_failures")
+            .cloned()
+            .unwrap_or_else(|| json!(0)),
+        "schema_mismatches": growth_run
+            .out
+            .get("schema_mismatches")
+            .cloned()
+            .unwrap_or_else(|| json!(0))
     });
     insert(&mut out, "growth_detail", growth_detail);
 

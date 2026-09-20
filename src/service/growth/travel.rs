@@ -37,22 +37,32 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         return Some(no_session());
     }
 
-    let mut travel = if status.is_success() {
-        dig(&status.body, "state")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    } else {
-        None
+    if acc.note_http(&status, "查旅行状态") {
+        return None;
+    }
+
+    let mut travel = match dig(&status.body, "state").and_then(Value::as_str) {
+        Some(state @ ("idle" | "arrived" | "traveling")) => Some(state.to_string()),
+        Some(state) => {
+            acc.record_schema_mismatch("查旅行状态", format!("未知 state={state:?}"));
+            return None;
+        }
+        None => {
+            acc.record_schema_mismatch("查旅行状态", "缺少字符串字段 state");
+            return None;
+        }
     };
 
-    let daily_limit = status.is_success() && value_truthy(dig(&status.body, "daily_limit_reached"));
-
-    acc.note_http(&status, "查旅行状态");
+    let daily_limit = value_truthy(dig(&status.body, "daily_limit_reached"));
 
     if travel.as_deref() == Some("arrived") {
-        let record_id = dig(&status.body, "record_id")
+        let Some(record_id) = dig(&status.body, "record_id")
+            .filter(|value| !value.is_null())
             .cloned()
-            .unwrap_or(Value::Null);
+        else {
+            acc.record_schema_mismatch("查旅行状态", "arrived 状态缺少 record_id");
+            return None;
+        };
         let claim = ctx.api.travel_claim(record_id).await;
 
         if check_auth(claim.code) {
@@ -91,12 +101,21 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             return None;
         }
 
-        if let Some(location) = dig(&config.body, "locations")
-            .and_then(Value::as_array)
-            .and_then(|items| items.first())
-            .and_then(Value::as_object)
-        {
-            let location_id = location.get("id").cloned().unwrap_or(Value::Null);
+        let Some(locations) = dig(&config.body, "locations").and_then(Value::as_array) else {
+            acc.record_schema_mismatch("查旅行配置", "缺少数组字段 locations");
+            return None;
+        };
+
+        if let Some(location_value) = locations.first() {
+            let Some(location) = location_value.as_object() else {
+                acc.record_schema_mismatch("查旅行配置", "locations[0] 不是对象");
+                return None;
+            };
+            let Some(location_id) = location.get("id").filter(|value| !value.is_null()).cloned()
+            else {
+                acc.record_schema_mismatch("查旅行配置", "locations[0] 缺少 id");
+                return None;
+            };
             let depart = ctx.api.travel_depart(location_id).await;
 
             if check_auth(depart.code) {
@@ -147,10 +166,15 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             .map(display_value)
             .unwrap_or_else(|| "?".to_string());
 
-        let eta = format_eta(
-            dig(&status.body, "arrive_at"),
-            dig(&status.body, "server_now"),
-        );
+        let arrive_at = dig(&status.body, "arrive_at");
+        let server_now = dig(&status.body, "server_now");
+        if arrive_at.is_none() || server_now.is_none() {
+            acc.record_schema_mismatch(
+                "查旅行状态",
+                "traveling 状态缺少 arrive_at 或 server_now",
+            );
+        }
+        let eta = format_eta(arrive_at, server_now);
 
         acc.parts
             .push(format!("Buddy 旅行中（{location_name}{eta}）"));

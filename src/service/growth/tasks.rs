@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use serde_json::{json, Value};
 
 use crate::model::common::ServiceRun;
-use crate::util::{first_i64, value_truthy};
+use crate::util::{dig, first_i64, value_truthy};
 
 use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts.push("时间预算耗尽，任务领奖跳过".to_string());
+        acc.record_budget_exhausted("时间预算耗尽，任务领奖跳过");
         return None;
     }
 
@@ -23,10 +23,17 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         return None;
     }
 
-    let tasks: Vec<Value> = crate::util::dig(&response.body, "tasks")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let Some(tasks_array) = dig(&response.body, "tasks").and_then(Value::as_array) else {
+        acc.record_schema_mismatch("查任务列表", "缺少数组字段 tasks");
+        return None;
+    };
+    let tasks: Vec<Value> = tasks_array.clone();
+
+    if tasks.iter().any(|task| {
+        !task.is_object() || task.get("task_code").and_then(Value::as_str).is_none()
+    }) {
+        acc.record_schema_mismatch("查任务列表", "tasks 中存在缺少 task_code 的条目");
+    }
 
     let mut titles = HashMap::new();
     for task in &tasks {
@@ -48,8 +55,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
 
     for batch in pending.chunks(20) {
         if ctx.budget.exhausted() {
-            acc.parts
-                .push("时间预算耗尽，剩余任务下次再接单".to_string());
+            acc.record_budget_exhausted("时间预算耗尽，剩余任务下次再接单");
             break;
         }
 
@@ -59,12 +65,16 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             return Some(no_session());
         }
 
-        let results: Vec<Value> = crate::util::dig(&accepted.body, "results")
+        let raw_results = dig(&accepted.body, "results");
+        if raw_results.is_some() && raw_results.and_then(Value::as_array).is_none() {
+            acc.record_schema_mismatch("接取任务", "results 存在但不是数组，使用批次结果回落");
+        }
+        let results: Vec<Value> = raw_results
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_else(|| {
                 let status = if accepted.is_success() { "ok" } else { "error" };
-                let message = crate::util::dig(&accepted.body, "msg")
+                let message = dig(&accepted.body, "msg")
                     .cloned()
                     .unwrap_or(Value::Null);
 
@@ -81,13 +91,17 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             });
 
         for result in results {
-            let code = result
-                .get("task_code")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let Some(code) = result.get("task_code").and_then(Value::as_str) else {
+                acc.record_schema_mismatch("接取任务", "results 条目缺少 task_code");
+                continue;
+            };
             let title = titles.get(code).map(String::as_str).unwrap_or(code);
+            let Some(result_status) = result.get("status").and_then(Value::as_str) else {
+                acc.record_schema_mismatch("接取任务", "results 条目缺少 status");
+                continue;
+            };
 
-            if result.get("status").and_then(Value::as_str) == Some("error") {
+            if result_status == "error" {
                 let message = result
                     .get("message")
                     .filter(|value| !value.is_null())
@@ -104,8 +118,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
 
     for task in tasks {
         if ctx.budget.exhausted() {
-            acc.parts
-                .push("时间预算耗尽，剩余任务奖下次再领".to_string());
+            acc.record_budget_exhausted("时间预算耗尽，剩余任务奖下次再领");
             break;
         }
 
@@ -125,7 +138,7 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
             return Some(no_session());
         }
 
-        if claim.is_success() && !value_truthy(crate::util::dig(&claim.body, "already_claimed")) {
+        if claim.is_success() && !value_truthy(dig(&claim.body, "already_claimed")) {
             let credit = first_i64(&claim.body, "credit", task.get("reward_credit"));
             let energy = first_i64(&claim.body, "energy", task.get("reward_energy"));
 

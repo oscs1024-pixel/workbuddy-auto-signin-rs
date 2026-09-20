@@ -1,13 +1,13 @@
 use serde_json::Value;
 
 use crate::model::common::ServiceRun;
-use crate::util::{as_i64, client_token, dig, value_truthy};
+use crate::util::{client_token, dig, try_i64, value_truthy};
 
 use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {
     if ctx.budget.exhausted() {
-        acc.parts.push("时间预算耗尽，盲盒跳过".to_string());
+        acc.record_budget_exhausted("时间预算耗尽，盲盒跳过");
         return None;
     }
 
@@ -17,10 +17,13 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         return Some(no_session());
     }
 
-    let chances = if acc.note_http(&chances_response, "查抽奖机会") {
-        0
-    } else {
-        as_i64(dig(&chances_response.body, "balance"), 0)
+    if acc.note_http(&chances_response, "查抽奖机会") {
+        return None;
+    }
+
+    let Some(chances) = try_i64(dig(&chances_response.body, "balance")) else {
+        acc.record_schema_mismatch("查抽奖机会", "缺少或无法解析 balance");
+        return None;
     };
 
     if chances <= 0 {
@@ -39,7 +42,10 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
         let mut prize = match prize_value {
             Some(Value::String(value)) => value.clone(),
             Some(other) => other.to_string(),
-            None => "未知".to_string(),
+            None => {
+                acc.record_schema_mismatch("抽奖结果", "缺少 prize_name/prize");
+                "未知".to_string()
+            }
         };
 
         if value_truthy(dig(&draw.body, "need_address"))
