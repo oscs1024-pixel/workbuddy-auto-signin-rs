@@ -25,6 +25,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Resolve lockfile for audit
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          cargo generate-lockfile
+          echo '---BEGIN-CARGO-LOCK---'
+          cat Cargo.lock
+          echo '---END-CARGO-LOCK---'
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
