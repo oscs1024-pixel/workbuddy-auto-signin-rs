@@ -188,12 +188,13 @@ fn render_growth(lines: &mut Vec<String>, detail: &Value) {
             accepted_tasks.push(title.to_string());
         } else if item.contains("任务") {
             task_other.push(item.to_string());
-        } else if item.starts_with("补登")
-            || item.contains("无需补登")
-            || item.starts_with("另有 ")
+        } else if item.starts_with("补登") || item.contains("无需补登") || item.starts_with("另有 ")
         {
             makeup.push(item.to_string());
-        } else if item.contains("旅行") || item.starts_with("Buddy 已前往") || item.starts_with("领旅行礼物") {
+        } else if item.contains("旅行")
+            || item.starts_with("Buddy 已前往")
+            || item.starts_with("领旅行礼物")
+        {
             travel.push(item.to_string());
         } else if item.starts_with("连登兑换")
             || item.starts_with("开盲盒")
