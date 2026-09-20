@@ -2,10 +2,10 @@ use serde_json::json;
 use workbuddy_auto_signin::util::format_eta;
 
 #[test]
-fn eta_uses_server_time_and_avoids_sixty_minute_display() {
+fn eta_uses_server_time_and_displays_countdown() {
     assert_eq!(
-        format_eta(Some(&json!(3599)), Some(&json!(0))),
-        "，约 1.0 小时后回"
+        format_eta(Some(&json!(10256)), Some(&json!(0))),
+        "，旅行倒计时 02:50:56"
     );
     assert_eq!(
         format_eta(Some(&json!(0)), Some(&json!(1))),

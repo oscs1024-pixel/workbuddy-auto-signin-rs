@@ -29,9 +29,9 @@
     "expected": "（+50 积分 +3 能量 +1 补登卡 +1 次抽奖）"
   },
   "eta": {
-    "arrive_at": 3599,
+    "arrive_at": 10256,
     "server_now": 0,
-    "expected": "，约 1.0 小时后回"
+    "expected": "，旅行倒计时 02:50:56"
   },
   "lottery_no_chance": {
     "message": "insufficient lottery chance balance",

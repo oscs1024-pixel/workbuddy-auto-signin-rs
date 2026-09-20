@@ -34,10 +34,19 @@ jobs:
       - name: Test
         run: cargo test --locked --all-targets
 
+  msrv:
+    name: MSRV (Rust 1.89.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Check minimum supported Rust version
+        run: cargo check --locked --all-targets
+
   build-release:
     name: build release (${{ matrix.target }})
     if: github.event_name == 'push'
-    needs: test
+    needs: [test, msrv]
     strategy:
       fail-fast: false
       matrix:

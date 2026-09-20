@@ -1,0 +1,120 @@
+{
+  "reference": {
+    "repository": "88lin/workbuddy-auto-signin",
+    "commit": "2b05ef0112319b9e9e3a8021757320371d0f88a9",
+    "note": "Pinned reference contract captured from the verified Python implementation; the Python source itself is not copied into this repository."
+  },
+  "signin_already": {
+    "status_response": {
+      "data": {
+        "active": true,
+        "today_checked_in": true,
+        "today_credit": "100",
+        "streak_days": 5,
+        "total_credits": 500,
+        "is_streak_day": false,
+        "next_streak_day": 7
+      }
+    },
+    "expected_requests": [
+      {
+        "method": "POST",
+        "path": "/v2/billing/meter/checkin-activity-status"
+      }
+    ],
+    "expected_output": {
+      "result": "ALREADY",
+      "today_credit": "100",
+      "streak_days": 5,
+      "total_credits": 500,
+      "is_streak_day": false,
+      "next_streak_day": 7
+    }
+  },
+  "growth_idle": {
+    "responses": {
+      "travel_status": {
+        "data": {
+          "state": "idle",
+          "daily_limit_reached": true
+        }
+      },
+      "tasks": {
+        "data": {
+          "tasks": []
+        }
+      },
+      "streak": {
+        "data": {
+          "makeup_cards": {
+            "balance": 0
+          },
+          "streak": {
+            "days": 7,
+            "makeup_dates": []
+          }
+        }
+      },
+      "redeem_summary": {
+        "data": {
+          "starter_status": "claimed",
+          "advanced_status": "locked",
+          "legendary_status": "locked"
+        }
+      },
+      "lottery_chances": {
+        "data": {
+          "balance": 0
+        }
+      },
+      "buddy_quota": {
+        "data": {
+          "affordable": 0,
+          "max_open_count": 1
+        }
+      },
+      "energy": {
+        "data": {
+          "balance": 3
+        }
+      }
+    },
+    "expected_requests": [
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/buddy/travel/status"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/tasks"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/streak"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/redeem/summary"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/lottery/chances"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/buddy/quota"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/activity/growth/energy"
+      }
+    ],
+    "expected_output": {
+      "result": "GROWTH",
+      "idle": true,
+      "credits_gained": 0,
+      "energy": 3,
+      "streak_days": 7
+    }
+  }
+}
