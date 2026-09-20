@@ -1,0 +1,8 @@
+[Unit]
+Description=WorkBuddy auto sign-in and growth center
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/workbuddy-auto-signin silent-poll
