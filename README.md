@@ -2,6 +2,77 @@
 
 `workbuddy-auto-signin` 的 Rust 重构版。目标是保持原 Python 脚本的业务语义，同时提供单一原生二进制、结构化模块、可测试 HTTP 层和跨平台定时运行模板。
 
+## 工程结构
+
+```text
+workbuddy-auto-signin/
+├── Cargo.toml
+├── src/
+│   ├── main.rs
+│   ├── cli.rs
+│   ├── app.rs
+│   ├── config.rs
+│   ├── error.rs
+│   ├── auth/
+│   │   ├── mod.rs
+│   │   ├── discovery.rs
+│   │   ├── session.rs
+│   │   └── headers.rs
+│   ├── http/
+│   │   ├── mod.rs
+│   │   ├── client.rs
+│   │   ├── retry.rs
+│   │   └── response.rs
+│   ├── budget/mod.rs
+│   ├── api/
+│   │   ├── mod.rs
+│   │   ├── billing.rs
+│   │   └── growth.rs
+│   ├── model/
+│   │   ├── mod.rs
+│   │   ├── common.rs
+│   │   ├── auth.rs
+│   │   ├── billing.rs
+│   │   └── growth.rs
+│   ├── service/
+│   │   ├── mod.rs
+│   │   ├── signin.rs
+│   │   ├── daily.rs
+│   │   └── growth/
+│   │       ├── mod.rs
+│   │       ├── context.rs
+│   │       ├── travel.rs
+│   │       ├── tasks.rs
+│   │       ├── makeup.rs
+│   │       ├── redeem.rs
+│   │       ├── lottery.rs
+│   │       ├── buddy.rs
+│   │       └── summary.rs
+│   ├── output/
+│   │   ├── mod.rs
+│   │   ├── reporter.rs
+│   │   └── json.rs
+│   └── util/
+│       ├── mod.rs
+│       ├── json.rs
+│       ├── number.rs
+│       ├── env.rs
+│       └── time.rs
+└── tests/
+    ├── auth_discovery.rs
+    ├── http_retry.rs
+    ├── signin_flow.rs
+    ├── daily_flow.rs
+    ├── growth_travel.rs
+    ├── growth_tasks.rs
+    ├── growth_makeup.rs
+    ├── growth_redeem.rs
+    ├── growth_lottery.rs
+    ├── growth_buddy.rs
+    ├── cli_compat.rs
+    └── fixtures/
+```
+
 > 上游实现基线：[`88lin/workbuddy-auto-signin@2b05ef0`](https://github.com/88lin/workbuddy-auto-signin/commit/2b05ef0112319b9e9e3a8021757320371d0f88a9)（2026-09-19）。原项目 MIT License；本仓库保留原版权与许可声明。
 
 ## 已实现能力
