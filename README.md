@@ -5,7 +5,7 @@
 ## 工程结构
 
 ```text
-workbuddy-auto-signin/
+workbuddy-auto-signin-rs/
 ├── Cargo.toml
 ├── workbuddy-auto-signin.plist.example
 ├── systemd/
@@ -94,7 +94,7 @@ workbuddy-auto-signin/
 - 成长中心：旅行领奖/派出、任务接取/领奖、断登补登、连登兑换、抽奖、Buddy 盲盒、能量/连签汇总。
 - `/redeem` 使用最新已验证契约：`tier = "7d" | "14d" | "28d"`；只有明确 unknown-tier 参数错误时才回退到数字天数。
 - `403 连登天数不足` 作为业务常态处理，不误判为登录失效。
-- 抽奖每轮最多一次；补登每轮最多一张卡，保持上游安全策略。
+- 抽奖每轮最多一次；补登每轮最多一张卡，降低不可逆写操作的风险。
 
 ## 构建
 
@@ -178,7 +178,7 @@ POST /v2/activity/growth/buddy/open
 GET  /v2/activity/growth/energy
 ```
 
-响应采用“稳定内部类型 + 宽容 `serde_json::Value`”策略，兼容 `data/result/resp/response` 信封、数字字符串和逆向接口的小幅结构变化。
+本机会话等稳定字段使用强类型模型；变化较频繁的活动 API 响应保持宽容 `serde_json::Value` 解析，兼容 `data/result/resp/response` 信封、数字字符串和小幅结构变化。
 
 ## 系统定时
 
@@ -203,7 +203,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 
 ### Linux
 
-`systemd/` 提供 user service/timer 示例，默认二进制路径为 `%h/.local/bin/workbuddy-auto-signin`。如果安装位置不同，修改 service 中的 `ExecStart` 即可；定时器会在 00:05 以及 01/05/09/13/17/21 点运行，并通过 systemd journal 保留输出。
+`systemd/` 提供 user service/timer，默认二进制路径为 `%h/.local/bin/workbuddy-auto-signin`。如果安装位置不同，修改 service 中的 `ExecStart` 即可；定时器会在 00:05 以及 01/05/09/13/17/21 点运行，并通过 systemd journal 保留输出。
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/workbuddy-auto-signin.service ~/.config/systemd/user/
+cp systemd/workbuddy-auto-signin.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now workbuddy-auto-signin.timer
+```
 
 ## 测试
 
