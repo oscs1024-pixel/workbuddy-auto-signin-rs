@@ -76,40 +76,6 @@ impl Reporter {
             .is_some_and(|value| value.trim().eq_ignore_ascii_case("json"))
     }
 
-    #[test]
-    fn growth_action_keeps_growth_heading_on_network_error() {
-        let out = json!({
-            "result": "NETWORK",
-            "report": "网络不可达，成长中心跳过"
-        });
-
-        let rendered = render_human("growth", &out);
-        assert!(rendered.starts_with("成长中心\n"));
-        assert!(rendered.contains("网络不可达，成长中心跳过"));
-        assert!(!rendered.starts_with("签到"));
-    }
-
-    #[test]
-    fn daily_growth_failure_is_not_rendered_as_empty() {
-        let out = json!({
-            "result": "ALREADY",
-            "today_credit": 100,
-            "growth_detail": {
-                "result": "NO_SESSION",
-                "report": "登录态已失效，请重新登录 WorkBuddy 桌面端",
-                "items": [],
-                "energy": null,
-                "streak_days": null,
-                "credits_gained": 0,
-                "idle": false
-            }
-        });
-
-        let rendered = render_human("auto", &out);
-        assert!(rendered.contains("成长中心"));
-        assert!(rendered.contains("登录态已失效"));
-        assert!(!rendered.contains("无可处理项目"));
-    }
 }
 
 fn render_human(action: &str, out: &Value) -> String {
@@ -357,5 +323,40 @@ mod tests {
         assert!(rendered.contains("2026-09-06 无需补登"));
         assert!(rendered.contains("能量 0 · 连签 20 天"));
         assert!(!rendered.starts_with('{'));
+    }
+
+    #[test]
+    fn growth_action_keeps_growth_heading_on_network_error() {
+        let out = json!({
+            "result": "NETWORK",
+            "report": "网络不可达，成长中心跳过"
+        });
+
+        let rendered = render_human("growth", &out);
+        assert!(rendered.starts_with("成长中心\n"));
+        assert!(rendered.contains("网络不可达，成长中心跳过"));
+        assert!(!rendered.starts_with("签到"));
+    }
+
+    #[test]
+    fn daily_growth_failure_is_not_rendered_as_empty() {
+        let out = json!({
+            "result": "ALREADY",
+            "today_credit": 100,
+            "growth_detail": {
+                "result": "NO_SESSION",
+                "report": "登录态已失效，请重新登录 WorkBuddy 桌面端",
+                "items": [],
+                "energy": null,
+                "streak_days": null,
+                "credits_gained": 0,
+                "idle": false
+            }
+        });
+
+        let rendered = render_human("auto", &out);
+        assert!(rendered.contains("成长中心"));
+        assert!(rendered.contains("登录态已失效"));
+        assert!(!rendered.contains("无可处理项目"));
     }
 }
