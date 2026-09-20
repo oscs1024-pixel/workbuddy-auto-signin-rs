@@ -8,9 +8,12 @@
 workbuddy-auto-signin-rs/
 ├── Cargo.toml
 ├── workbuddy-auto-signin.plist.example
+├── workbuddy-growth-poll.plist.example
 ├── systemd/
 │   ├── workbuddy-auto-signin.service
-│   └── workbuddy-auto-signin.timer
+│   ├── workbuddy-auto-signin.timer
+│   ├── workbuddy-growth-poll.service
+│   └── workbuddy-growth-poll.timer
 ├── src/
 │   ├── main.rs
 │   ├── cli.rs
@@ -35,9 +38,7 @@ workbuddy-auto-signin-rs/
 │   ├── model/
 │   │   ├── mod.rs
 │   │   ├── common.rs
-│   │   ├── auth.rs
-│   │   ├── billing.rs
-│   │   └── growth.rs
+│   │   └── auth.rs
 │   ├── service/
 │   │   ├── mod.rs
 │   │   ├── signin.rs
@@ -74,8 +75,7 @@ workbuddy-auto-signin-rs/
     ├── growth_lottery.rs
     ├── growth_buddy.rs
     ├── growth_flow.rs
-    ├── cli_compat.rs
-    └── fixtures/
+    └── cli_compat.rs
 ```
 
 
@@ -94,7 +94,24 @@ workbuddy-auto-signin-rs/
 - 成长中心：旅行领奖/派出、任务接取/领奖、断登补登、连登兑换、抽奖、Buddy 盲盒、能量/连签汇总。
 - `/redeem` 使用最新已验证契约：`tier = "7d" | "14d" | "28d"`；只有明确 unknown-tier 参数错误时才回退到数字天数。
 - `403 连登天数不足` 作为业务常态处理，不误判为登录失效。
-- 抽奖每轮最多一次；补登每轮最多一张卡，降低不可逆写操作的风险。
+- 抽奖每轮最多一次；补登每轮最多消耗一张卡，降低不可逆写操作的风险。
+- 补登候选列表若包含服务端陈旧的“无需补登”日期，会跳过该日期继续检查下一项，不会长期阻塞真正待补日期。
+- 普通交互命令输出分组摘要；silent/调试模式保持 JSON，机器解析可用 `WORKBUDDY_OUTPUT=json`。
+
+## 实现范围与审计结论
+
+当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架与空 fixture 占位文件。
+
+关键行为：
+
+- Billing 两个 POST 允许网络/5xx 重试；Growth 写操作默认不自动重试，避免超时后的重复副作用。
+- Growth 固定按“旅行 → 任务 → 补登 → 兑换 → 抽奖 → Buddy → 状态汇总”执行，避免业务依赖被并发打乱。
+- 兑换只在明确 unknown/unsupported/invalid tier 时从 `7d/14d/28d` 回退数字天数；403 连登天数不足按业务常态处理。
+- 补登限制的是“实际消耗一张卡”，陈旧的无需补登日期不会占用该额度。
+- 轮询只在“签到已完成/活动未开启 + Growth 真正 idle”时静默；网络、登录失效和实际失败不会被“无可处理项目”掩盖。
+- macOS、Linux、Windows 都区分 00:05 主签到（`silent`）和 01/05/09/13/17/21 轮询（`silent-poll`），预算与日志语义保持一致。
+
+CI 使用 mock API 验证契约与状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。CI 不持有真实 WorkBuddy 登录凭据，因此真实线上接口若发生服务端改版，仍需以实际响应为准。
 
 ## 构建
 
@@ -202,18 +219,28 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 
 ### macOS
 
-复制 `workbuddy-auto-signin.plist.example` 到 `~/Library/LaunchAgents/`，将 `/PATH/TO/workbuddy-auto-signin` 替换为 release 二进制绝对路径后加载。
+提供两份 LaunchAgent 模板：
+
+- `workbuddy-auto-signin.plist.example`：每天 00:05 执行 `silent`。
+- `workbuddy-growth-poll.plist.example`：登录后补跑，并在 01/05/09/13/17/21 点执行 `silent-poll`。
+
+把两份文件里的 `/PATH/TO/workbuddy-auto-signin` 改为 release 二进制绝对路径，再复制到 `~/Library/LaunchAgents/` 后按系统方式加载。两类任务分开后，主签到使用普通预算，轮询使用较短预算并保留空跑静默语义。
 
 ### Linux
 
-`systemd/` 提供 user service/timer，默认二进制路径为 `%h/.local/bin/workbuddy-auto-signin`。如果安装位置不同，修改 service 中的 `ExecStart` 即可；定时器会在 00:05 以及 01/05/09/13/17/21 点运行，并通过 systemd journal 保留输出。
+`systemd/` 提供两组 user service/timer：
+
+- `workbuddy-auto-signin.*`：00:05 执行 `silent`。
+- `workbuddy-growth-poll.*`：01/05/09/13/17/21 点执行 `silent-poll`。
+
+默认二进制路径为 `%h/.local/bin/workbuddy-auto-signin`；安装位置不同则修改两个 service 的 `ExecStart`。
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp systemd/workbuddy-auto-signin.service ~/.config/systemd/user/
-cp systemd/workbuddy-auto-signin.timer ~/.config/systemd/user/
+cp systemd/workbuddy-auto-signin.{service,timer} ~/.config/systemd/user/
+cp systemd/workbuddy-growth-poll.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now workbuddy-auto-signin.timer
+systemctl --user enable --now workbuddy-auto-signin.timer workbuddy-growth-poll.timer
 ```
 
 ## Release
@@ -234,14 +261,16 @@ workbuddy-auto-signin-x86_64-apple-darwin.tar.gz
 workbuddy-auto-signin-aarch64-apple-darwin.tar.gz
 ```
 
-## 测试
+## 测试与质量门禁
 
 ```bash
-cargo test --all-targets
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
 cargo check --all-targets
+cargo test --all-targets
 ```
 
-GitHub Actions 会在 Linux、Windows、macOS 三个平台编译并运行测试。
+GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，并额外构建 Linux x64、Windows x64、macOS Intel、macOS Apple Silicon release 产物。
 
 ## 关键兼容约束
 
@@ -253,8 +282,9 @@ GitHub Actions 会在 Linux、Windows、macOS 三个平台编译并运行测试�
 6. `/redeem` 主参数为字符串档位 `7d/14d/28d`。
 7. `403 天数不足` 必须先于通用 401/403 登录失效判断。
 8. Lottery 每轮最多一次不可逆 draw。
-9. Makeup 每轮最多消耗一张卡。
-10. `silent*` 模式尽最大努力把结果落盘。
+9. Makeup 每轮最多实际消耗一张卡；“无需补登”的陈旧日期不占用该额度。
+10. `growth` 单独运行时即使提前失败，也必须使用“成长中心”语境输出。
+11. `silent*` 模式尽最大努力把结果落盘。
 
 ## 安全说明
 

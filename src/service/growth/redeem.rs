@@ -105,7 +105,11 @@ pub fn is_tier_locked(response: &HttpResult) -> bool {
 
     let message = value_string(dig(&response.body, "msg")).unwrap_or_default();
 
-    message.contains("天数不足") || message.contains("不足")
+    message.contains("天数不足")
+        || (message.contains("不足")
+            && (message.contains("连登")
+                || message.contains("连续登录")
+                || message.contains("连续签到")))
 }
 
 pub fn redeem_reward_desc(body: &Value, tier: &str) -> String {

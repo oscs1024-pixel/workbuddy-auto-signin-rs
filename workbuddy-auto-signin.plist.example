@@ -8,27 +8,16 @@
     <key>ProgramArguments</key>
     <array>
         <string>/PATH/TO/workbuddy-auto-signin</string>
-        <string>auto</string>
+        <string>silent</string>
     </array>
 
-    <!-- 登录后补跑一次；接口本身幂等，不会重复领取签到积分。 -->
-    <key>RunAtLoad</key>
-    <true/>
-
-    <!-- 00:05 主签到 + 01/05/09/13/17/21 成长中心轮询与补签。 -->
+    <!-- 主签到：使用普通预算，只在每天 00:05 运行。 -->
     <key>StartCalendarInterval</key>
-    <array>
-        <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>5</integer></dict>
-        <dict><key>Hour</key><integer>1</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>
-        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
-    </array>
+    <dict>
+        <key>Hour</key><integer>0</integer>
+        <key>Minute</key><integer>5</integer>
+    </dict>
 
-    <key>StandardOutPath</key>
-    <string>/tmp/workbuddy-auto-signin.out</string>
     <key>StandardErrorPath</key>
     <string>/tmp/workbuddy-auto-signin.err</string>
 </dict>

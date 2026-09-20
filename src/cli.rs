@@ -36,19 +36,6 @@ impl Action {
         }
     }
 
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Silent => "silent",
-            Self::Growth => "growth",
-            Self::SilentPoll => "silent-poll",
-            Self::SilentGrowth => "silent-growth",
-            Self::Status => "status",
-            Self::Claim => "claim",
-            Self::All => "all",
-        }
-    }
-
     pub fn is_poll(self) -> bool {
         matches!(self, Self::SilentPoll | Self::SilentGrowth)
     }

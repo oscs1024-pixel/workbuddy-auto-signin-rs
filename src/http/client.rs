@@ -36,10 +36,6 @@ impl WorkBuddyClient {
         })
     }
 
-    pub fn endpoint(&self) -> &Url {
-        &self.endpoint
-    }
-
     fn url(&self, path: &str) -> String {
         format!("{}{}", self.endpoint.as_str().trim_end_matches('/'), path)
     }

@@ -1,9 +1,9 @@
 [Unit]
-Description=WorkBuddy auto sign-in and growth-center automation
+Description=WorkBuddy daily auto sign-in
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
 # 默认假定二进制安装到 ~/.local/bin；如路径不同请修改这里。
-ExecStart=%h/.local/bin/workbuddy-auto-signin auto
+ExecStart=%h/.local/bin/workbuddy-auto-signin silent

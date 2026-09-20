@@ -29,18 +29,6 @@ impl Reporter {
         }
     }
 
-    pub fn with_default_log(
-        action: impl Into<String>,
-        config_warning: Option<String>,
-        default_log: PathBuf,
-    ) -> Self {
-        Self {
-            action: action.into(),
-            config_warning,
-            default_log,
-        }
-    }
-
     pub fn emit(&self, mut out: Value) {
         if let (Some(warning), Some(object)) = (self.config_warning.as_ref(), out.as_object_mut()) {
             object.insert("config_warning".into(), json!(warning));
@@ -54,7 +42,7 @@ impl Reporter {
             let rendered = if self.use_json_stdout() {
                 payload.clone()
             } else {
-                render_human(&out)
+                render_human(&self.action, &out)
             };
             let stdout_ok = writeln!(io::stdout().lock(), "{rendered}").is_ok();
             if stdout_ok && !is_error {
@@ -87,12 +75,52 @@ impl Reporter {
             .ok()
             .is_some_and(|value| value.trim().eq_ignore_ascii_case("json"))
     }
+
+    #[test]
+    fn growth_action_keeps_growth_heading_on_network_error() {
+        let out = json!({
+            "result": "NETWORK",
+            "report": "网络不可达，成长中心跳过"
+        });
+
+        let rendered = render_human("growth", &out);
+        assert!(rendered.starts_with("成长中心\n"));
+        assert!(rendered.contains("网络不可达，成长中心跳过"));
+        assert!(!rendered.starts_with("签到"));
+    }
+
+    #[test]
+    fn daily_growth_failure_is_not_rendered_as_empty() {
+        let out = json!({
+            "result": "ALREADY",
+            "today_credit": 100,
+            "growth_detail": {
+                "result": "NO_SESSION",
+                "report": "登录态已失效，请重新登录 WorkBuddy 桌面端",
+                "items": [],
+                "energy": null,
+                "streak_days": null,
+                "credits_gained": 0,
+                "idle": false
+            }
+        });
+
+        let rendered = render_human("auto", &out);
+        assert!(rendered.contains("成长中心"));
+        assert!(rendered.contains("登录态已失效"));
+        assert!(!rendered.contains("无可处理项目"));
+    }
 }
 
-fn render_human(out: &Value) -> String {
-    if out.get("result").and_then(Value::as_str) == Some("GROWTH") {
+fn render_human(action: &str, out: &Value) -> String {
+    // growth 命令即使提前返回 NETWORK/NO_SESSION/TIMEOUT，也必须保持“成长中心”语境。
+    if action == "growth" || out.get("result").and_then(Value::as_str) == Some("GROWTH") {
         let mut lines = vec!["成长中心".to_string()];
         render_growth(&mut lines, out);
+        if let Some(warning) = out.get("config_warning").and_then(Value::as_str) {
+            lines.push(String::new());
+            lines.push(format!("提示：{warning}"));
+        }
         return lines.join("\n");
     }
 
@@ -167,6 +195,16 @@ fn push_metric(lines: &mut Vec<String>, label: &str, value: Option<&Value>, sign
 }
 
 fn render_growth(lines: &mut Vec<String>, detail: &Value) {
+    let result = detail.get("result").and_then(Value::as_str).unwrap_or("GROWTH");
+    if result != "GROWTH" {
+        let report = detail
+            .get("report")
+            .and_then(Value::as_str)
+            .unwrap_or("成长中心执行失败");
+        lines.push(format!("  ! {report}"));
+        return;
+    }
+
     let items = detail
         .get("items")
         .and_then(Value::as_array)
@@ -313,7 +351,7 @@ mod tests {
             }
         });
 
-        let rendered = render_human(&out);
+        let rendered = render_human("auto", &out);
         assert!(rendered.contains("✓ 今日已完成"));
         assert!(rendered.contains("任务（已接取 2 个）"));
         assert!(rendered.contains("2026-09-06 无需补登"));

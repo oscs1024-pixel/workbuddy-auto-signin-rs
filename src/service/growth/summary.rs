@@ -59,7 +59,7 @@ pub fn finalize(
     }
 
     if acc.credits_gained != 0 {
-        tail.push(format!("本次 +共 {} 积分", acc.credits_gained));
+        tail.push(format!("本次共 +{} 积分", acc.credits_gained));
     }
 
     // 同时保留结构化步骤，终端展示层无需再从长字符串里反向拆分业务结果。

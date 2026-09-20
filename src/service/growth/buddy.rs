@@ -6,12 +6,7 @@ use crate::util::{as_i64, client_token, dig};
 use super::context::{check_auth, message_or_http, no_session, GrowthAccumulator, GrowthContext};
 
 pub fn compute_open_count(affordable: i64, max_open_count: i64) -> i64 {
-    let max_open_count = if max_open_count == 0 {
-        1
-    } else {
-        max_open_count
-    };
-    affordable.min(max_open_count)
+    affordable.min(max_open_count.max(1))
 }
 
 pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option<ServiceRun> {

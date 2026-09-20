@@ -63,18 +63,34 @@ pub async fn run(
     let mut streak_stale = false;
 
     if cards > 0 && !dates.is_empty() {
-        let count = (cards as usize).min(MAKEUP_MAX_PER_RUN).min(dates.len());
+        let mut cards_used = 0usize;
+        let mut dates_checked = 0usize;
 
-        for date in dates.iter().take(count) {
+        for date in &dates {
+            // 限制的是“实际消耗的补登卡”而不是“探测过的日期”。
+            // 服务端偶尔会在 makeup_dates 中残留已经无需补登的旧日期；若它挡在首位，
+            // 每轮只检查第一项会让后面的真实断登日期永远得不到处理。
+            if cards <= 0 || cards_used >= MAKEUP_MAX_PER_RUN {
+                break;
+            }
             if ctx.budget.exhausted() {
                 acc.parts.push("时间预算耗尽，剩余补登下次再做".to_string());
                 break;
             }
 
+            dates_checked += 1;
             let used = ctx
                 .api
                 .use_makeup_card(date.clone(), client_token("u"))
                 .await;
+
+            let message = message_or_http(&used.body, used.code);
+            if !used.is_success() && is_no_makeup_needed(&message) {
+                // “无需补登”不消耗卡，继续看下一个候选日期；同时标记本轮 streak 响应已过时。
+                streak_stale = true;
+                acc.parts.push(format!("{} 无需补登", display_value(date)));
+                continue;
+            }
 
             if check_auth(used.code) {
                 return Err(no_session());
@@ -82,6 +98,7 @@ pub async fn run(
 
             if used.is_success() {
                 cards -= 1;
+                cards_used += 1;
                 streak_stale = true;
 
                 let remaining = parse_makeup_cards(dig(&used.body, "makeup_cards"));
@@ -97,24 +114,19 @@ pub async fn run(
                 ));
                 acc.successes += 1;
             } else {
-                let message = message_or_http(&used.body, used.code);
-                if is_no_makeup_needed(&message) {
-                    // 服务端可能返回过期的 makeup_dates；“无需补登”属于正常状态，不计失败。
-                    acc.parts.push(format!("{} 无需补登", display_value(date)));
-                } else {
-                    acc.record_failure(
-                        used.code,
-                        format!("补登 {} 失败：{message}", display_value(date)),
-                    );
-                }
+                acc.record_failure(
+                    used.code,
+                    format!("补登 {} 失败：{message}", display_value(date)),
+                );
+                // 真实失败后停止继续写，避免一次异常在同轮触发多个不可逆请求。
+                break;
             }
         }
 
-        if dates.len() > MAKEUP_MAX_PER_RUN && cards > 0 {
+        let remaining_dates = dates.len().saturating_sub(dates_checked);
+        if remaining_dates > 0 && cards > 0 {
             acc.parts.push(format!(
-                "另有 {} 天可补、剩 {} 张卡，下轮继续",
-                dates.len() - MAKEUP_MAX_PER_RUN,
-                cards
+                "另有 {remaining_dates} 天可补、剩 {cards} 张卡，下轮继续"
             ));
         }
     }

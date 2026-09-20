@@ -1,0 +1,9 @@
+[Unit]
+Description=WorkBuddy catch-up sign-in and growth-center poll
+Wants=network-online.target
+After=network-online.target workbuddy-auto-signin.service
+
+[Service]
+Type=oneshot
+# 轮询使用独立的较短时间预算；空跑默认不写 signin.log。
+ExecStart=%h/.local/bin/workbuddy-auto-signin silent-poll

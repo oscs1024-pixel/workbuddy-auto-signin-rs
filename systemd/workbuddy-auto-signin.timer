@@ -1,16 +1,8 @@
 [Unit]
-Description=Schedule WorkBuddy auto sign-in and growth-center automation
+Description=Schedule WorkBuddy daily auto sign-in
 
 [Timer]
-# 每日主签到。
 OnCalendar=*-*-* 00:05:00
-# 每四小时轮询成长中心，同时承担补签兜底。
-OnCalendar=*-*-* 01:00:00
-OnCalendar=*-*-* 05:00:00
-OnCalendar=*-*-* 09:00:00
-OnCalendar=*-*-* 13:00:00
-OnCalendar=*-*-* 17:00:00
-OnCalendar=*-*-* 21:00:00
 Persistent=true
 
 [Install]

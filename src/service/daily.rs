@@ -36,10 +36,13 @@ pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, 
     let growth_result = growth_run.out.get("result").cloned().unwrap_or(Value::Null);
 
     insert(&mut out, "growth", growth_report.clone());
-    insert(&mut out, "growth_result", growth_result);
+    insert(&mut out, "growth_result", growth_result.clone());
 
-    // 给交互式输出保留结构化成长中心结果；原 growth/report 字段继续存在，兼容旧日志和脚本。
+    // 给交互式输出保留结构化成长中心结果；同时带上 result/report，
+    // 避免成长中心提前返回 NETWORK/NO_SESSION/TIMEOUT 时被误显示成“无可处理项目”。
     let growth_detail = json!({
+        "result": growth_result,
+        "report": growth_report.clone(),
         "items": growth_run.out.get("items").cloned().unwrap_or_else(|| json!([])),
         "energy": growth_run.out.get("energy").cloned().unwrap_or(Value::Null),
         "streak_days": growth_run.out.get("streak_days").cloned().unwrap_or(Value::Null),
@@ -48,7 +51,8 @@ pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, 
             .get("credits_gained")
             .cloned()
             .unwrap_or_else(|| json!(0)),
-        "idle": growth_run.out.get("idle").cloned().unwrap_or(Value::Bool(false))
+        "idle": growth_run.out.get("idle").cloned().unwrap_or(Value::Bool(false)),
+        "failures": growth_run.out.get("failures").cloned().unwrap_or_else(|| json!(0))
     });
     insert(&mut out, "growth_detail", growth_detail);
 

@@ -35,4 +35,9 @@ fn tier_contract_distinguishes_fallback_and_locked_state() {
         code: 403,
         body: json!({"msg": "连续登录天数不足"}),
     }));
+
+    assert!(!is_tier_locked(&HttpResult {
+        code: 403,
+        body: json!({"msg": "账户余额不足"}),
+    }));
 }

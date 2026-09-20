@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule WorkBuddy growth-center polls
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 09:00:00
+OnCalendar=*-*-* 13:00:00
+OnCalendar=*-*-* 17:00:00
+OnCalendar=*-*-* 21:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
