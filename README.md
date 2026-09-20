@@ -213,6 +213,24 @@ systemctl --user daemon-reload
 systemctl --user enable --now workbuddy-auto-signin.timer
 ```
 
+## Release
+
+CI 通过后会自动生成可直接运行的原生二进制：
+
+- 推送到 `main`：更新滚动的 `latest` 预发布，适合直接获取最新构建。
+- 推送 `v*` 标签（例如 `v0.1.0`）：创建对应正式 GitHub Release。
+- 自动发布 Linux x64、Windows x64、macOS Intel、macOS Apple Silicon 四套产物。
+- 每个压缩包同时附带 `.sha256` 校验文件。
+
+Release 资产命名：
+
+```text
+workbuddy-auto-signin-x86_64-unknown-linux-gnu.tar.gz
+workbuddy-auto-signin-x86_64-pc-windows-msvc.zip
+workbuddy-auto-signin-x86_64-apple-darwin.tar.gz
+workbuddy-auto-signin-aarch64-apple-darwin.tar.gz
+```
+
 ## 测试
 
 ```bash

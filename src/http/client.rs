@@ -108,8 +108,7 @@ impl WorkBuddyClient {
         let timeout = Duration::from_secs_f64(
             self.budget
                 .remaining_secs_f64()
-                .min(REQUEST_TIMEOUT_SECS)
-                .max(1.0),
+                .clamp(1.0, REQUEST_TIMEOUT_SECS),
         );
 
         let mut result = self.send_once(method.clone(), path, payload, timeout).await;
@@ -140,8 +139,7 @@ impl WorkBuddyClient {
             let timeout = Duration::from_secs_f64(
                 self.budget
                     .remaining_secs_f64()
-                    .min(REQUEST_TIMEOUT_SECS)
-                    .max(1.0),
+                    .clamp(1.0, REQUEST_TIMEOUT_SECS),
             );
             result = self.send_once(method.clone(), path, payload, timeout).await;
         }
