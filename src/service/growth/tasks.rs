@@ -149,7 +149,6 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
     None
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

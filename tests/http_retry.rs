@@ -19,7 +19,6 @@ fn business_errors_and_budget_do_not_retry() {
     assert!(retry_delays(CODE_BUDGET_OUT).is_none());
 }
 
-
 #[tokio::test]
 async fn server_retry_obeys_budget_cutoff() {
     use std::sync::Arc;

@@ -100,7 +100,10 @@ mod tests {
     #[test]
     fn message_or_http_keeps_network_error_detail() {
         assert_eq!(
-            message_or_http(&json!({"error": "connection reset by peer"}), CODE_NO_NETWORK),
+            message_or_http(
+                &json!({"error": "connection reset by peer"}),
+                CODE_NO_NETWORK
+            ),
             "connection reset by peer"
         );
         assert_eq!(message_or_http(&json!({}), 503), "HTTP 503");

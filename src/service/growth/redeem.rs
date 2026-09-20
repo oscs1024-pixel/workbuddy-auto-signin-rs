@@ -147,7 +147,6 @@ pub fn redeem_reward_desc(body: &Value, tier: &str) -> String {
     format!("（{fallback}）")
 }
 
-
 #[cfg(test)]
 mod state_tests {
     use std::sync::Arc;
@@ -213,8 +212,7 @@ mod state_tests {
             .and(path("/v2/activity/growth/redeem"))
             .and(Tier(json!(7)))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({"data":{"energy_granted":2}})),
+                ResponseTemplate::new(200).set_body_json(json!({"data":{"energy_granted":2}})),
             )
             .expect(1)
             .mount(&server)
@@ -260,8 +258,7 @@ mod state_tests {
         Mock::given(method("POST"))
             .and(path("/v2/activity/growth/redeem"))
             .respond_with(
-                ResponseTemplate::new(403)
-                    .set_body_json(json!({"msg":"连续登录天数不足"})),
+                ResponseTemplate::new(403).set_body_json(json!({"msg":"连续登录天数不足"})),
             )
             .expect(1)
             .mount(&server)

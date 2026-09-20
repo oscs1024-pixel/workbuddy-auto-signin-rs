@@ -158,7 +158,6 @@ mod tests {
     }
 }
 
-
 #[cfg(test)]
 mod state_tests {
     use std::sync::Arc;
@@ -221,9 +220,6 @@ mod state_tests {
         let state = run(&ctx, &mut acc).await.unwrap();
         assert!(state.streak_stale);
         assert_eq!(acc.successes, 1);
-        assert!(acc
-            .parts
-            .iter()
-            .any(|part| part.contains("另有 1 天可补")));
+        assert!(acc.parts.iter().any(|part| part.contains("另有 1 天可补")));
     }
 }

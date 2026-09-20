@@ -31,7 +31,6 @@ pub struct SessionContext {
     pub headers: HeaderMap,
 }
 
-
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,

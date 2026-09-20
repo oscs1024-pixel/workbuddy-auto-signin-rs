@@ -92,7 +92,6 @@ pub fn is_no_chance(message: &str) -> bool {
     message.contains("no chance")
 }
 
-
 #[cfg(test)]
 mod state_tests {
     use std::sync::Arc;
@@ -122,7 +121,9 @@ mod state_tests {
             .await;
         Mock::given(method("POST"))
             .and(path("/v2/activity/growth/lottery/draw"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data":{"prize_name":"积分"}})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"data":{"prize_name":"积分"}})),
+            )
             .expect(1)
             .mount(&server)
             .await;

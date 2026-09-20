@@ -159,7 +159,6 @@ pub async fn run(ctx: &GrowthContext<'_>, acc: &mut GrowthAccumulator) -> Option
     None
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -179,12 +178,9 @@ mod tests {
     use crate::service::growth::context::{GrowthAccumulator, GrowthContext};
 
     fn api(server: &MockServer, budget: Arc<Budget>) -> GrowthApi {
-        let client = WorkBuddyClient::new(
-            Url::parse(&server.uri()).unwrap(),
-            HeaderMap::new(),
-            budget,
-        )
-        .unwrap();
+        let client =
+            WorkBuddyClient::new(Url::parse(&server.uri()).unwrap(), HeaderMap::new(), budget)
+                .unwrap();
         GrowthApi::new(client)
     }
 
@@ -218,10 +214,7 @@ mod tests {
         assert!(run(&ctx, &mut acc).await.is_none());
         assert_eq!(acc.failures, 1);
         assert_eq!(acc.hard_failures, 1);
-        assert!(acc
-            .parts
-            .iter()
-            .any(|part| part.contains("查旅行配置失败")));
+        assert!(acc.parts.iter().any(|part| part.contains("查旅行配置失败")));
     }
 
     #[tokio::test]
