@@ -21,6 +21,7 @@ workbuddy-auto-signin-rs/
 │   ├── app.rs
 │   ├── config.rs
 │   ├── error.rs
+│   ├── instance_lock.rs
 │   ├── auth/
 │   │   ├── mod.rs
 │   │   ├── discovery.rs
@@ -66,6 +67,12 @@ workbuddy-auto-signin-rs/
 │       └── time.rs
 └── tests/
     ├── auth_discovery.rs
+    ├── auth_session.rs
+    ├── single_instance.rs
+    ├── cli_process.rs
+    ├── golden_compat.rs
+    ├── fixtures/
+    │   └── golden_scenarios.json
     ├── http_retry.rs
     ├── signin_flow.rs
     ├── daily_flow.rs
@@ -98,29 +105,36 @@ workbuddy-auto-signin-rs/
 - 抽奖每轮最多一次；补登每轮最多消耗一张卡，降低不可逆写操作的风险。
 - 补登候选列表若包含服务端陈旧的“无需补登”日期，会跳过该日期继续检查下一项，不会长期阻塞真正待补日期。
 - 普通交互命令输出分组摘要；silent/调试模式保持 JSON，机器解析可用 `WORKBUDDY_OUTPUT=json`。
+- 进程启动时获取跨平台排他文件锁；已有实例运行时返回 `BUSY` 并跳过本轮，避免计划任务补跑与手工执行并发触发不可逆 Growth 写操作。
+- 旅行配置读取失败会进入 Growth 失败统计，不再被误判为 idle；Growth 写请求会优先保留服务端 `msg` 或客户端 `error` 详情。
+- 凭据 JSON 中显式的 `auth: null` / `account: null` 按空对象处理，最终归一为 `NO_SESSION`，不会误报成 JSON 格式损坏。
 
 ## 实现范围与审计结论
 
-当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架与空 fixture 占位文件。
+当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架。随后补齐旅行配置错误传播、网络错误详情、null 会话字段兼容、跨进程单实例锁，以及关键状态机与 golden 回归测试。
 
 关键行为：
 
 - Billing 两个 POST 允许网络/5xx 重试；Growth 写操作默认不自动重试，避免超时后的重复副作用。
+- 旅行状态机中的 `travel/config` 是必要读步骤；最终网络/5xx 失败会进入 hard failure 统计，不能再被 silent-poll 当成空跑吞掉。
+- Growth 写接口错误优先显示响应 `msg`，网络/超时则保留客户端 `error`，最后才回退到 HTTP/伪状态码。
 - Growth 固定按“旅行 → 任务 → 补登 → 兑换 → 抽奖 → Buddy → 状态汇总”执行，避免业务依赖被并发打乱。
 - 兑换只在明确 unknown/unsupported/invalid tier 时从 `7d/14d/28d` 回退数字天数；403 连登天数不足按业务常态处理。
 - 补登限制的是“实际消耗一张卡”，陈旧的无需补登日期不会占用该额度。
 - 轮询只在“签到已完成/活动未开启 + Growth 真正 idle”时静默；网络、登录失效和实际失败不会被“无可处理项目”掩盖。
 - macOS、Linux、Windows 都区分 00:05 主签到（`silent`）和 01/05/09/13/17/21 轮询（`silent-poll`），预算与日志语义保持一致。
+- 所有命令进入业务逻辑前都会获取同一排他文件锁；第二个进程返回 `BUSY` 并正常退出，锁随进程退出由操作系统释放，不依赖删除 lock 文件。
 
-CI 使用 mock API 验证契约与状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
+CI 使用 mock API 验证关键接口契约和状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。当前行为级回归覆盖旅行 config 硬失败、旅行领奖失败不 depart、任务 20 条分批与 results 缺失回落、补登每轮最多实际消耗一张卡、兑换 unknown-tier 数字 fallback 且使用新 client token、403 locked 优先级、抽奖一轮一次、retry 预算截断、null 会话字段、CLI 无参数兼容和跨平台单实例锁；`tests/fixtures/golden_scenarios.json` 固化已验证契约的 golden 快照。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
 
 ### 已知边界
 
 - CI 不持有真实 WorkBuddy 登录凭据，因此不会对生产账号执行签到、补登、兑换、抽奖等写操作；服务端若改版，仍需以实际响应为准。
-- 当前没有额外的跨进程全局互斥锁。系统定时任务已经按主签到/轮询分开并错峰运行，但手工同时启动多个进程，或手工命令恰好与系统补跑重叠时，仍可能并发执行 Growth 写操作。建议避免并发启动同一程序；如果后续需要支持多实例环境，可再引入跨平台单实例锁。
 - Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应刻意保留宽容 JSON 解析；这是兼容策略，不是遗漏的模型层。
 
 ## 构建
+
+要求 Rust 1.89 或更高版本。项目使用 Rust 标准库从 1.89 起提供的跨平台文件锁 API。
 
 ```bash
 cargo build --release
@@ -292,6 +306,9 @@ GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，�
 9. Makeup 每轮最多实际消耗一张卡；“无需补登”的陈旧日期不占用该额度。
 10. `growth` 单独运行时即使提前失败，也必须使用“成长中心”语境输出。
 11. `silent*` 模式尽最大努力把结果落盘。
+12. 同一用户环境同时只允许一个实例进入业务执行；并发实例返回 `BUSY`，不继续发送 API 请求。
+13. `auth/account` 字段缺失或显式为 `null` 时都按空对象处理，缺少 token/uid 最终归为 `NO_SESSION`。
+14. 旅行配置读取的 hard failure 必须计入 Growth failures，不能误判为 idle。
 
 ## 安全说明
 
