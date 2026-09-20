@@ -48,7 +48,7 @@ pub async fn run_daily(signin: &SigninService, growth: &GrowthService) -> (i32, 
             .get("credits_gained")
             .cloned()
             .unwrap_or_else(|| json!(0)),
-        "idle": growth_run.out.get("idle").cloned().unwrap_or_else(|| json!(false))
+        "idle": growth_run.out.get("idle").cloned().unwrap_or(Value::Bool(false))
     });
     insert(&mut out, "growth_detail", growth_detail);
 
