@@ -6,8 +6,15 @@
 
 ```text
 workbuddy-auto-signin-rs/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── .gitignore
 ├── Cargo.toml
 ├── Cargo.lock
+├── LICENSE
+├── scripts/
+│   └── install-windows.ps1
 ├── workbuddy-auto-signin.plist.example
 ├── workbuddy-growth-poll.plist.example
 ├── systemd/
@@ -71,8 +78,11 @@ workbuddy-auto-signin-rs/
     ├── single_instance.rs
     ├── cli_process.rs
     ├── golden_compat.rs
+    ├── reference_differential.rs
+    ├── schema_drift.rs
     ├── fixtures/
-    │   └── golden_scenarios.json
+    │   ├── golden_scenarios.json
+    │   └── reference_differential.json
     ├── http_retry.rs
     ├── signin_flow.rs
     ├── daily_flow.rs
@@ -104,14 +114,18 @@ workbuddy-auto-signin-rs/
 - `403 连登天数不足` 作为业务常态处理，不误判为登录失效。
 - 抽奖每轮最多一次；补登每轮最多消耗一张卡，降低不可逆写操作的风险。
 - 补登候选列表若包含服务端陈旧的“无需补登”日期，会跳过该日期继续检查下一项，不会长期阻塞真正待补日期。
-- 普通交互命令输出分组摘要；silent/调试模式保持 JSON，机器解析可用 `WORKBUDDY_OUTPUT=json`。
+- 普通交互命令输出分组摘要；`status/claim/all` 和 `WORKBUDDY_OUTPUT=json` 输出纯 JSON；`silent*` 文件日志为“时间戳 + 单行 JSON payload”。
+- Buddy 旅行中使用服务端 `arrive_at - server_now` 显示 `HH:MM:SS` 倒计时，例如 `旅行倒计时 02:50:56`；不依赖本机时钟。
 - 进程启动时获取跨平台排他文件锁；已有实例运行时返回 `BUSY` 并跳过本轮，避免计划任务补跑与手工执行并发触发不可逆 Growth 写操作。
 - 旅行配置读取失败会进入 Growth 失败统计，不再被误判为 idle；Growth 写请求会优先保留服务端 `msg` 或客户端 `error` 详情。
+- Growth 关键读接口对最低必要 schema 做校验：HTTP 200 但关键字段消失/类型错误会记录 `schema_mismatches`，不会静默当成“没有任务/没有机会”。
+- soft failure 与 hard failure 分离：4xx/schema drift 会阻止 `idle=true` 并留下日志，但只有 5xx、网络失败、预算耗尽等 hard failure 才影响整体退出码。
+- silent 日志按“显式 `WORKBUDDY_SIGNIN_LOG` → 二进制目录 → 用户 cache 目录 → stderr”逐级兜底，并自动创建缺失的父目录。
 - 凭据 JSON 中显式的 `auth: null` / `account: null` 按空对象处理，最终归一为 `NO_SESSION`，不会误报成 JSON 格式损坏。
 
 ## 实现范围与审计结论
 
-当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架。随后补齐旅行配置错误传播、网络错误详情、null 会话字段兼容、跨进程单实例锁，以及关键状态机与 golden 回归测试。
+当前代码按“CLI → service → api → http”分层，业务路径已覆盖签到与成长中心的全部 18 个 endpoint pattern。2026-09-20 的代码审计重点核对了凭据发现、预算与重试、签到幂等、旅行、任务、补登、连登兑换、抽奖、Buddy、输出和三平台调度模板，并清理了未参与运行逻辑的早期模型骨架。随后补齐旅行配置错误传播、网络错误详情、null 会话字段兼容、跨进程单实例锁、最低 schema 检测、soft/hard failure 语义拆分、可靠日志兜底，以及关键状态机、golden 和 reference-differential 回归测试。
 
 关键行为：
 
@@ -121,16 +135,19 @@ workbuddy-auto-signin-rs/
 - Growth 固定按“旅行 → 任务 → 补登 → 兑换 → 抽奖 → Buddy → 状态汇总”执行，避免业务依赖被并发打乱。
 - 兑换只在明确 unknown/unsupported/invalid tier 时从 `7d/14d/28d` 回退数字天数；403 连登天数不足按业务常态处理。
 - 补登限制的是“实际消耗一张卡”，陈旧的无需补登日期不会占用该额度。
-- 轮询只在“签到已完成/活动未开启 + Growth 真正 idle”时静默；网络、登录失效和实际失败不会被“无可处理项目”掩盖。
+- 轮询只在“签到已完成/活动未开启 + Growth 真正 idle”时静默；hard failure、读接口 soft 4xx 和 schema mismatch 都会阻止 idle，从而不会被“无可处理项目”掩盖。
 - macOS、Linux、Windows 都区分 00:05 主签到（`silent`）和 01/05/09/13/17/21 轮询（`silent-poll`），预算与日志语义保持一致。
 - 所有命令进入业务逻辑前都会获取同一排他文件锁；第二个进程返回 `BUSY` 并正常退出，锁随进程退出由操作系统释放，不依赖删除 lock 文件。
 
-CI 使用 mock API 验证关键接口契约和状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建。当前行为级回归覆盖旅行 config 硬失败、旅行领奖失败不 depart、任务 20 条分批与 results 缺失回落、补登每轮最多实际消耗一张卡、兑换 unknown-tier 数字 fallback 且使用新 client token、403 locked 优先级、抽奖一轮一次、retry 预算截断、null 会话字段、CLI 无参数兼容和跨平台单实例锁；`tests/fixtures/golden_scenarios.json` 固化已验证契约的 golden 快照。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
+CI 使用 mock API 验证关键接口契约和状态机，并在 Linux、Windows、macOS 上执行格式、Clippy、编译、测试和 release 构建；额外使用 Rust 1.89.0 执行 MSRV `cargo check --locked --all-targets`，确保 `rust-version = "1.89"` 不是仅文档声明。当前行为级回归覆盖旅行 config 硬失败、旅行领奖失败不 depart、任务 20 条分批与 results 缺失回落、补登每轮最多实际消耗一张卡、兑换 unknown-tier 数字 fallback 且使用新 client token、403 locked 优先级、抽奖一轮一次、retry 预算截断、null 会话字段、CLI 无参数兼容、跨平台单实例锁、schema drift 与日志路径回落。
+
+`tests/fixtures/golden_scenarios.json` 固化稳定 helper/output 契约；`tests/fixtures/reference_differential.json` 绑定已验证参考提交 `2b05ef0112319b9e9e3a8021757320371d0f88a9`，通过 mock transcript 对比实际请求顺序和关键输出子集。仓库不复制参考 Python 源文件，因此 differential harness 不会重新引入历史实现残留。仓库提交 `Cargo.lock`，CI/Release 全部使用 `--locked`，避免依赖解析随时间漂移。
 
 ### 已知边界
 
 - CI 不持有真实 WorkBuddy 登录凭据，因此不会对生产账号执行签到、补登、兑换、抽奖等写操作；服务端若改版，仍需以实际响应为准。
-- Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应刻意保留宽容 JSON 解析；这是兼容策略，不是遗漏的模型层。
+- Growth 活动接口属于变化较频繁的契约，因此稳定会话字段采用强类型，活动响应继续使用宽容 JSON 解析；但对影响状态机的关键字段增加最低 schema 检查，在“兼容小改动”和“发现契约漂移”之间取平衡。
+- Reference differential fixture 固定在已验证参考提交；参考实现若出现新提交，需要重新审计接口与 fixture，而不是自动追随最新代码。
 
 ## 构建
 
@@ -162,7 +179,7 @@ workbuddy-auto-signin all
 
 不传参数时默认执行 `auto`。
 
-普通 `auto` / `growth` 默认输出分组后的易读摘要；`silent*` 日志以及 `status` / `claim` / `all` 调试命令仍保持 JSON。需要脚本解析 `auto` / `growth` 时，可设置 `WORKBUDDY_OUTPUT=json`。
+普通 `auto` / `growth` 默认输出分组后的易读摘要；`status` / `claim` / `all` 调试命令输出纯 JSON。需要脚本解析 `auto` / `growth` 时，可设置 `WORKBUDDY_OUTPUT=json`。计划任务的 `silent*` 不写 stdout，文件日志格式为 `[YYYY-MM-DD HH:MM:SS] {JSON payload}`。
 
 ## 凭据探测
 
@@ -182,7 +199,7 @@ workbuddy-auto-signin all
 | 环境变量 | 作用 |
 | --- | --- |
 | `WORKBUDDY_AUTH_FILE` | 手动指定凭据文件 |
-| `WORKBUDDY_SIGNIN_LOG` | silent 模式日志路径 |
+| `WORKBUDDY_SIGNIN_LOG` | silent 模式首选日志路径；不可写时自动回落 |
 | `WORKBUDDY_BUDGET_SECONDS` | 覆盖单轮网络预算；非法值会回落并输出 `config_warning` |
 | `WORKBUDDY_GROWTH_LOG_EMPTY` | `1/true/yes/on` 时轮询空跑也写日志 |
 | `WORKBUDDY_OUTPUT` | 设为 `json` 时，普通交互命令也输出 JSON |
@@ -291,7 +308,7 @@ cargo check --locked --all-targets
 cargo test --locked --all-targets
 ```
 
-GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，并额外构建 Linux x64、Windows x64、macOS Intel、macOS Apple Silicon release 产物。
+GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，单独用 Rust 1.89.0 验证 MSRV，并额外构建 Linux x64、Windows x64、macOS Intel、macOS Apple Silicon release 产物。
 
 ## 关键兼容约束
 
@@ -309,6 +326,11 @@ GitHub Actions 会在 Linux、Windows、macOS 三个平台执行以上检查，�
 12. 同一用户环境同时只允许一个实例进入业务执行；并发实例返回 `BUSY`，不继续发送 API 请求。
 13. `auth/account` 字段缺失或显式为 `null` 时都按空对象处理，缺少 token/uid 最终归为 `NO_SESSION`。
 14. 旅行配置读取的 hard failure 必须计入 Growth failures，不能误判为 idle。
+15. Growth 关键 2xx 响应缺少最低必要字段时必须记录 schema mismatch，不能静默回落为空数据。
+16. 读接口 soft 4xx 会阻止 `idle=true`，但不提升为 hard failure；已知业务常态仍在具体模块中显式识别。
+17. Buddy 旅行倒计时必须基于服务端时间差，并保持 `HH:MM:SS` 格式。
+18. silent 日志至少尝试显式路径、二进制目录、用户 cache 三处，全部失败后写 stderr。
+19. CI 必须用 Rust 1.89.0 验证 MSRV。
 
 ## 安全说明
 
